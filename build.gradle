@@ -1,0 +1,94 @@
+plugins {
+    id 'java'
+    id 'org.jetbrains.kotlin.jvm' version '2.3.21' // pinned: CodeQL's Kotlin extractor caps at <2.3.30
+    id 'jacoco'
+    id 'com.diffplug.spotless' version '8.8.0'
+    id 'org.owasp.dependencycheck' version '12.2.2'
+}
+
+version = '0.1.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+kotlin {
+    jvmToolchain(25)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+
+    testImplementation platform("org.junit:junit-bom:6.1.1")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.hamcrest:hamcrest:3.0'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                counter = 'INSTRUCTION'
+                value = 'COVEREDRATIO'
+                minimum = 0.90
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification
+
+spotless {
+    kotlin {
+        target 'src/**/*.kt'
+        ktlint('1.5.0')
+    }
+    kotlinGradle {
+        target '*.gradle.kts'
+        ktlint('1.5.0')
+    }
+    // Config/docs (YAML workflows, Markdown) held to the same bar as the Kotlin.
+    format 'config', {
+        target '.github/**/*.yml', '.github/**/*.yaml', '*.md'
+        prettier('3.4.2')
+        trimTrailingWhitespace()
+        endWithNewline()
+    }
+}
+
+// OWASP dependency vulnerability scanner. Run: ./gradlew dependencyCheckAnalyze
+// Fails the build on any dependency with CVSS >= 7.0.
+dependencyCheck {
+    failBuildOnCVSS = 7.0f
+    formats = ['HTML', 'JSON']
+    analyzers {
+        assemblyEnabled = false
+        nodeEnabled = false
+        nodeAuditEnabled = false
+        nuspecEnabled = false
+    }
+}
