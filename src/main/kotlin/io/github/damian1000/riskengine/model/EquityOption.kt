@@ -1,0 +1,12 @@
+package io.github.damian1000.riskengine.model
+
+enum class OptionType {
+    CALL,
+    PUT,
+}
+
+/** A European vanilla option on a cash equity underlying — no early exercise, one strike. */
+data class EquityOption(
+    val strike: Money,
+    val type: OptionType,
+)

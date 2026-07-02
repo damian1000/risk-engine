@@ -39,6 +39,9 @@ out/
 ### Kotlin ###
 .kotlin/
 
+### jqwik (property-based testing state, machine-local) ###
+.jqwik-database
+
 ### Secrets ###
 .env
 .env.local

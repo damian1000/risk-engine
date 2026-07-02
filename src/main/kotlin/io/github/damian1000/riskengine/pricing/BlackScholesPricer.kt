@@ -1,0 +1,58 @@
+package io.github.damian1000.riskengine.pricing
+
+import io.github.damian1000.riskengine.model.EquityOption
+import io.github.damian1000.riskengine.model.MarketData
+import io.github.damian1000.riskengine.model.Money
+import io.github.damian1000.riskengine.model.OptionType
+import java.math.BigDecimal
+import java.math.RoundingMode
+import kotlin.math.exp
+import kotlin.math.ln
+import kotlin.math.sqrt
+
+/** Prices a [EquityOption] against a [MarketData] snapshot. The one real seam this repo has. */
+interface Pricer {
+    fun price(
+        option: EquityOption,
+        market: MarketData,
+    ): Money
+}
+
+/**
+ * Closed-form Black-Scholes-Merton for a European vanilla option, with continuous dividend
+ * yield `q`. Implemented directly in Kotlin — not a call to QuantLib — and validated against it
+ * as an offline test oracle instead (see the golden-value tests): a library call would hide the
+ * competence this repo exists to demonstrate.
+ */
+class BlackScholesPricer : Pricer {
+    override fun price(
+        option: EquityOption,
+        market: MarketData,
+    ): Money {
+        val spot = market.spot.amount.toDouble()
+        val strike = option.strike.amount.toDouble()
+        val vol = market.volatility
+        val rate = market.riskFreeRate
+        val dividendYield = market.dividendYield
+        val time = market.timeToExpiry
+
+        val sqrtT = sqrt(time)
+        val d1 = (ln(spot / strike) + (rate - dividendYield + vol * vol / 2) * time) / (vol * sqrtT)
+        val d2 = d1 - vol * sqrtT
+
+        val price =
+            when (option.type) {
+                OptionType.CALL ->
+                    spot * exp(-dividendYield * time) * NormalDistribution.cdf(d1) -
+                        strike * exp(-rate * time) * NormalDistribution.cdf(d2)
+                OptionType.PUT ->
+                    strike * exp(-rate * time) * NormalDistribution.cdf(-d2) -
+                        spot * exp(-dividendYield * time) * NormalDistribution.cdf(-d1)
+            }
+
+        // A vanilla option's true price is never negative; clamp floating-point noise from
+        // catastrophic cancellation on deep out-of-the-money inputs rather than let it leak out.
+        val nonNegative = maxOf(price, 0.0)
+        return Money(BigDecimal.valueOf(nonNegative).setScale(8, RoundingMode.HALF_UP))
+    }
+}
