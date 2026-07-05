@@ -13,6 +13,10 @@ import java.math.BigDecimal
 value class Money(
     val amount: BigDecimal,
 ) : Comparable<Money> {
+    operator fun plus(other: Money): Money = Money(amount + other.amount)
+
+    operator fun times(quantity: Double): Money = Money(amount * BigDecimal.valueOf(quantity))
+
     override fun compareTo(other: Money): Int = amount.compareTo(other.amount)
 
     override fun toString(): String = amount.toPlainString()

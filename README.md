@@ -4,11 +4,11 @@
 [![CodeQL](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/damian1000/risk-engine/graph/badge.svg)](https://codecov.io/gh/damian1000/risk-engine)
 
-A risk framework for a vanilla equity option: pricing, Greeks, and the invariants that prove they're correct.
+A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, and the invariants that prove they're correct.
 
 ## Problem
 
-Price a European vanilla option (call or put) on a cash equity underlying, and derive its risk sensitivities (Greeks), in a way that's validated — not just implemented.
+Price a European vanilla option (call or put) on a cash equity underlying, derive its risk sensitivities (Greeks), and aggregate both across a portfolio of equity and option positions, in a way that's validated — not just implemented.
 
 ## Design
 
@@ -16,6 +16,7 @@ Price a European vanilla option (call or put) on a cash equity underlying, and d
 - **`BlackScholesPricer` implements the closed-form Black-Scholes-Merton model directly in Kotlin** — it is not a wrapper around a pricing library. `NormalDistribution.cdf` (the standard normal CDF Black-Scholes needs) is a hand-written Abramowitz-Stegun rational approximation, accurate to ~7 decimal places, rather than a dependency pulled in for one function.
 - **`Pricer` is the one real seam** — an interface `BlackScholesPricer` implements, so a different model could be swapped in without touching anything that calls it.
 - **Greeks are bump-and-reprice, not closed-form.** `BumpAndRepriceGreeksCalculator` numerically differentiates any `Pricer`'s output — it works even for a pricer with no closed-form derivative. See [Design decisions](#design-decisions).
+- **A `Portfolio` is a list of signed `Position`s** in a sealed `Instrument` hierarchy: the cash `Equity` underlying, or an `EquityOption` on it. `PortfolioRiskAggregator` scales each position's per-unit value and Greeks by its quantity and sums; a long-equity, short-call book comes out with the expected net delta and short gamma.
 
 ## Design decisions
 
@@ -33,6 +34,7 @@ Three independent layers:
    - **Put-call parity**: `C - P = S·e^(-qT) - K·e^(-rT)`.
    - **Delta bounds**: a call's delta is always in `[0, 1]`; a put's is always in `[-1, 0]`.
    - **Monotonicity**: a call's price never falls, and a put's never rises, as spot rises.
+   - **Portfolio parity**: `{+1 call, -1 put, -e^(-qT) equity}` aggregates to `-K·e^(-rT)` in value and zero in delta — the aggregator has no parity knowledge, so the invariant only holds if it scales and sums both instrument kinds properly.
 
 ## Run
 
@@ -57,6 +59,13 @@ val call = EquityOption(strike = Money.of("40"), type = OptionType.CALL)
 
 pricer.price(call, market)                    // 4.75942239
 greeksCalculator.greeks(call, market, pricer) // Greeks(delta=0.779..., gamma=..., vega=..., theta=..., rho=...)
+
+// A covered call: long 100 shares, short 100 calls.
+val aggregator = PortfolioRiskAggregator(pricer, greeksCalculator)
+val book = Portfolio.of(Position(Equity, 100.0), Position(call, -100.0))
+
+aggregator.value(book, market)  // 3724.057761 (100·42 - 100·4.75942239)
+aggregator.greeks(book, market) // Greeks(delta=22.08..., gamma=-4.99..., ...) — net delta, short gamma
 ```
 
 ## Stack
