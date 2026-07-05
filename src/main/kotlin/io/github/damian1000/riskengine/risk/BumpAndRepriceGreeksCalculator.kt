@@ -15,9 +15,8 @@ interface GreeksCalculator {
 }
 
 /**
- * Numerical bump-and-reprice, not closed-form. Deliberately: it works against *any* [Pricer],
- * including ones with no closed-form derivative, which is the more general and senior technique
- * — the same reasoning `orderbook`'s benchmark harness applies to measuring instead of assuming.
+ * Numerical bump-and-reprice Greeks. Differentiates any [Pricer]'s output, including one with
+ * no closed-form derivative, so a new pricing model needs no new Greeks code.
  *
  * Units: [Greeks.delta] and [Greeks.gamma] are per unit of spot; [Greeks.vega] is per 1.00 of
  * volatility (divide by 100 for a per-vol-point vega); [Greeks.rho] is per 1.00 of rate; and

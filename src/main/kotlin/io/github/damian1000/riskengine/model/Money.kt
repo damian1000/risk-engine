@@ -3,12 +3,11 @@ package io.github.damian1000.riskengine.model
 import java.math.BigDecimal
 
 /**
- * A monetary amount — spot, strike, and option premiums. Backed by `BigDecimal`, deliberately
- * unlike a matching engine's scaled-`Long` tick price: risk calculations run per-request, not
- * millions of times a second on a hot path, so there is no allocation cost to avoid, and
- * `BigDecimal`'s arbitrary precision is the correct choice here. The Black-Scholes formula itself
- * still runs in `Double` internally (transcendental functions have no exact `BigDecimal` form),
- * converting back to `Money` only at the boundary.
+ * A monetary amount — spot, strike, and option premiums. Backed by `BigDecimal`: risk
+ * calculations run per-request, not millions of times a second on a hot path, so there is no
+ * allocation cost to avoid and no reason to give up arbitrary precision. The Black-Scholes
+ * formula itself still runs in `Double` internally (transcendental functions have no exact
+ * `BigDecimal` form), converting back to `Money` only at the boundary.
  */
 @JvmInline
 value class Money(

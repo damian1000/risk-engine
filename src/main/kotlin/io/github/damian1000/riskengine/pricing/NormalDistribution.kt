@@ -5,8 +5,7 @@ import kotlin.math.exp
 /**
  * The standard normal CDF, `N(x)`. Implemented directly rather than pulling in a dependency for
  * one function: the Abramowitz-Stegun rational approximation (formula 26.2.17), accurate to
- * within 7.5e-8 — far tighter than option-pricing needs, and small enough to be worth
- * understanding and testing rather than importing.
+ * within 7.5e-8, far tighter than option-pricing needs.
  */
 object NormalDistribution {
     private const val A1 = 0.319381530

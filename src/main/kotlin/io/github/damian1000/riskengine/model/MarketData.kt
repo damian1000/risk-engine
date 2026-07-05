@@ -2,7 +2,7 @@ package io.github.damian1000.riskengine.model
 
 /**
  * The inputs a pricer needs, at a point in time. [timeToExpiry] is years-to-expiry directly
- * (not an expiry date plus a valuation date) — a deliberate v1 simplification; a calendar/day-count
+ * (not an expiry date plus a valuation date) — a v1 simplification; a calendar/day-count
  * convention can be layered on top without changing the pricer.
  */
 data class MarketData(
