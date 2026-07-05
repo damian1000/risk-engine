@@ -11,12 +11,13 @@ import org.junit.jupiter.api.Test
 import java.math.BigDecimal
 
 /**
- * Golden-value tests against Hull's *Options, Futures, and Other Derivatives* textbook example
- * (S=42, K=40, r=10%, sigma=20%, T=0.5y, no dividends → call ≈ 4.76, put ≈ 0.81) — a published,
- * independently verifiable reference computation, standing in for an offline QuantLib run: both
- * this implementation and Hull's numbers were cross-checked against Python's exact `math.erf`-based
- * normal CDF while writing this test (call = 4.759422..., put = 0.808599...), so the tolerance
- * below is tight, not fudged to make the test pass.
+ * Published-value tests: Hull's *Options, Futures, and Other Derivatives* textbook example
+ * (S=42, K=40, r=10%, sigma=20%, T=0.5y, no dividends → call ≈ 4.76, put ≈ 0.81) and Haug's
+ * *The Complete Guide to Option Pricing Formulas* generalized example with a dividend yield.
+ * The expected values below are the published cases re-derived at full precision with Python's
+ * exact `math.erf`-based normal CDF, which is what lets the tolerances stay tight; they anchor
+ * the pricer to the literature, while [StrataCrossValidationTest] checks it against an
+ * independent implementation across randomized inputs.
  */
 class BlackScholesPricerTest {
     private val pricer = BlackScholesPricer()
@@ -43,6 +44,26 @@ class BlackScholesPricerTest {
         val put = EquityOption(strike = Money.of("40"), type = OptionType.PUT)
         val price = pricer.price(put, market).amount.toDouble()
         assertThat(price, closeTo(0.8085993729000958, tolerance))
+    }
+
+    /**
+     * Haug (2nd ed., §1.1.6), generalized Black-Scholes: S=75, K=70, T=0.5, r=10%,
+     * cost-of-carry b=5% (so q = r − b = 5%), sigma=35% → put ≈ 4.0870. Exercises the
+     * dividend-yield path, which the Hull example leaves at zero.
+     */
+    @Test
+    fun putPriceMatchesHaugGeneralizedExample() {
+        val market =
+            MarketData(
+                spot = Money.of("75"),
+                volatility = 0.35,
+                riskFreeRate = 0.10,
+                dividendYield = 0.05,
+                timeToExpiry = 0.5,
+            )
+        val put = EquityOption(strike = Money.of("70"), type = OptionType.PUT)
+        val price = pricer.price(put, market).amount.toDouble()
+        assertThat(price, closeTo(4.086953828635359, 1e-5))
     }
 
     @Test

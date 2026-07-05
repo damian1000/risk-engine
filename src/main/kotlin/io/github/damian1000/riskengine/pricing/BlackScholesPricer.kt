@@ -29,8 +29,9 @@ interface Pricer {
 
 /**
  * Closed-form Black-Scholes-Merton for a European vanilla option, with continuous dividend
- * yield `q`. Implemented directly in Kotlin; QuantLib serves as an offline test oracle
- * (see the golden-value tests) rather than as a runtime dependency.
+ * yield `q`. Implemented directly in Kotlin, with no runtime dependency on a pricing library;
+ * tests validate it against published textbook values and against OpenGamma Strata's Black
+ * formula on randomized inputs.
  */
 class BlackScholesPricer : Pricer {
     override fun price(

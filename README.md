@@ -13,22 +13,23 @@ Price a European vanilla option (call or put) on a cash equity underlying, and d
 ## Design
 
 - **`Money` is `BigDecimal`-backed**, not a scaled `Long`. Pricing runs per-request, not millions of times a second on a matching-engine hot path, so there's no allocation cost to justify trading away arbitrary precision.
-- **`BlackScholesPricer` implements the closed-form Black-Scholes-Merton model directly in Kotlin** — it is not a call to QuantLib. `NormalDistribution.cdf` (the standard normal CDF Black-Scholes needs) is a hand-written Abramowitz-Stegun rational approximation, accurate to ~7 decimal places, rather than a dependency pulled in for one function.
+- **`BlackScholesPricer` implements the closed-form Black-Scholes-Merton model directly in Kotlin** — it is not a wrapper around a pricing library. `NormalDistribution.cdf` (the standard normal CDF Black-Scholes needs) is a hand-written Abramowitz-Stegun rational approximation, accurate to ~7 decimal places, rather than a dependency pulled in for one function.
 - **`Pricer` is the one real seam** — an interface `BlackScholesPricer` implements, so a different model could be swapped in without touching anything that calls it.
-- **Greeks are bump-and-reprice, not closed-form.** `BumpAndRepriceGreeksCalculator` numerically differentiates any `Pricer`'s output — it works even for a pricer with no closed-form derivative, which is the more general technique. See [Design decisions](#design-decisions).
+- **Greeks are bump-and-reprice, not closed-form.** `BumpAndRepriceGreeksCalculator` numerically differentiates any `Pricer`'s output — it works even for a pricer with no closed-form derivative. See [Design decisions](#design-decisions).
 
 ## Design decisions
 
-- **Pricing math is hand-written, not a QuantLib dependency.** A maintained QuantLib JVM binding exists, but taking it as a runtime dependency would mean QuantLib does the actual pricing, and would add native-library/JNI fragility for a calculation that isn't a hot path. Instead, QuantLib's role is an **offline correctness oracle**: the golden-value test below is cross-checked against an independent, exact reference computation, not against this repo's own formula reproduced twice.
+- **Pricing math is hand-written; an external library is the oracle, not the engine.** A maintained QuantLib JVM binding exists, but taking it as a runtime dependency would mean QuantLib does the actual pricing, and would add native-library/JNI fragility for a calculation that isn't a hot path. The external check is test-scoped and pure-JVM instead: OpenGamma Strata's `BlackFormulaRepository` re-prices randomized inputs in `StrataCrossValidationTest`, so every CI run compares this implementation against an independent one that shares no code with it.
 - **`Money` is `BigDecimal`-backed, unlike `orderbook`'s scaled-`Long` `Price`.** `orderbook`'s matching engine runs the same comparison millions of times a second, where an allocating, arbitrary-precision type would be the wrong tool. Nothing here runs at that rate, so `BigDecimal`'s exactness costs nothing. (The formula itself still drops to `Double` internally — transcendental functions like `exp`/`ln`/`sqrt` have no exact `BigDecimal` form, which is standard practice in production pricing libraries too.)
 - **Greeks are numerical (bump-and-reprice), not closed-form**, even though Black-Scholes has well-known closed-form Greeks. Bump-and-reprice works against _any_ pricer, including ones without a closed-form derivative, so it carries over unchanged to pricers this repo doesn't have yet.
 
 ## Correctness strategy
 
-Two independent layers:
+Three independent layers:
 
-1. **Golden-value tests** — `BlackScholesPricerTest` checks against Hull's _Options, Futures, and Other Derivatives_ textbook example (S=42, K=40, r=10%, σ=20%, T=0.5y, no dividends → call ≈ 4.7594, put ≈ 0.8086). Both this implementation's output and Hull's published numbers were independently cross-checked against Python's exact `erf`-based normal CDF while writing the test, which is what lets the assertion tolerance stay tight.
-2. **Property tests** (`net.jqwik:jqwik`, 1,000 generated cases per property) — invariants that hold by mathematics or no-arbitrage argument, independent of any specific model or reference values:
+1. **Published-value tests** — `BlackScholesPricerTest` checks against textbook results: Hull's _Options, Futures, and Other Derivatives_ example (S=42, K=40, r=10%, σ=20%, T=0.5y, no dividends → call ≈ 4.7594, put ≈ 0.8086) and Haug's _The Complete Guide to Option Pricing Formulas_ generalized example with a 5% dividend yield (put ≈ 4.0870). The published numbers were re-derived against Python's exact `erf`-based normal CDF while writing the tests, which is what lets the assertion tolerances stay tight.
+2. **Cross-validation against an independent implementation** — `StrataCrossValidationTest` re-prices 1,000 randomized market/option combinations per run through [OpenGamma Strata](https://github.com/OpenGamma/Strata)'s Black formula (test-scoped dependency) and requires agreement within a bound derived from the CDF approximation's published error, `1e-7·(S+K)`. Anything a transcribed value can't catch — a sign error that only shows on negative rates, a branch that misprices deep in-the-money puts — has a thousand chances per build to surface here.
+3. **Property tests** (`net.jqwik:jqwik`, 1,000 generated cases per property) — invariants that hold by mathematics or no-arbitrage argument, independent of any specific model or reference values:
    - **Put-call parity**: `C - P = S·e^(-qT) - K·e^(-rT)`.
    - **Delta bounds**: a call's delta is always in `[0, 1]`; a put's is always in `[-1, 0]`.
    - **Monotonicity**: a call's price never falls, and a put's never rises, as spot rises.
@@ -36,7 +37,7 @@ Two independent layers:
 ## Run
 
 ```bash
-./gradlew test    # behavioural, golden-value, and property-based tests
+./gradlew test    # behavioural, published-value, cross-validation, and property-based tests
 ```
 
 ## Use it
@@ -65,6 +66,7 @@ greeksCalculator.greeks(call, market, pricer) // Greeks(delta=0.779..., gamma=..
 - JUnit Jupiter 6.1
 - Hamcrest 3
 - jqwik 1.10.1
+- OpenGamma Strata 2.12 (tests only, as the pricing cross-check)
 
 ## License
 
