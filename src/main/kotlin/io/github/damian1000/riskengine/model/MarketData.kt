@@ -13,6 +13,7 @@ data class MarketData(
     val timeToExpiry: Double,
 ) {
     init {
+        require(spot.amount.signum() > 0) { "spot must be positive, got $spot" }
         require(volatility > 0) { "volatility must be positive, got $volatility" }
         require(timeToExpiry > 0) { "timeToExpiry must be positive, got $timeToExpiry" }
     }

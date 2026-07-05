@@ -9,4 +9,8 @@ enum class OptionType {
 data class EquityOption(
     val strike: Money,
     val type: OptionType,
-)
+) {
+    init {
+        require(strike.amount.signum() > 0) { "strike must be positive, got $strike" }
+    }
+}

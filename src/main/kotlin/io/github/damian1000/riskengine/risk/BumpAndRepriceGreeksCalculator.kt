@@ -18,6 +18,15 @@ interface GreeksCalculator {
  * Numerical bump-and-reprice, not closed-form. Deliberately: it works against *any* [Pricer],
  * including ones with no closed-form derivative, which is the more general and senior technique
  * — the same reasoning `orderbook`'s benchmark harness applies to measuring instead of assuming.
+ *
+ * Units: [Greeks.delta] and [Greeks.gamma] are per unit of spot; [Greeks.vega] is per 1.00 of
+ * volatility (divide by 100 for a per-vol-point vega); [Greeks.rho] is per 1.00 of rate; and
+ * [Greeks.theta] is per year (divide by 365 for per-day decay).
+ *
+ * First-order Greeks use central differences (O(bump²) error). A bump that would push an input
+ * out of its valid domain shrinks adaptively: volatility must stay positive, and time-to-expiry
+ * must stay positive, so an option expiring within a day still gets a finite theta instead of a
+ * rejected reprice at negative time.
  */
 class BumpAndRepriceGreeksCalculator(
     private val relativeSpotBump: Double = 1e-4,
@@ -42,16 +51,23 @@ class BumpAndRepriceGreeksCalculator(
         val delta = (spotUpPrice - spotDownPrice) / (2 * spotBump)
         val gamma = (spotUpPrice - 2 * basePrice + spotDownPrice) / (spotBump * spotBump)
 
-        val volUpPrice = priceOf(market.copy(volatility = market.volatility + volBump))
-        val vega = (volUpPrice - basePrice) / volBump
+        // Volatility must stay positive, so the symmetric bump shrinks for tiny vols.
+        val volH = minOf(volBump, market.volatility / 2)
+        val volUpPrice = priceOf(market.copy(volatility = market.volatility + volH))
+        val volDownPrice = priceOf(market.copy(volatility = market.volatility - volH))
+        val vega = (volUpPrice - volDownPrice) / (2 * volH)
 
+        // Rates can legitimately be negative, so the full symmetric bump always applies.
         val rateUpPrice = priceOf(market.copy(riskFreeRate = market.riskFreeRate + rateBump))
-        val rho = (rateUpPrice - basePrice) / rateBump
+        val rateDownPrice = priceOf(market.copy(riskFreeRate = market.riskFreeRate - rateBump))
+        val rho = (rateUpPrice - rateDownPrice) / (2 * rateBump)
 
-        // One day closer to expiry; a lower resulting price is time decay, hence theta's usual
-        // negative sign for a long option position.
-        val timeDecayedPrice = priceOf(market.copy(timeToExpiry = market.timeToExpiry - timeBump))
-        val theta = (timeDecayedPrice - basePrice) / timeBump
+        // Theta stays one-sided by convention — decay toward expiry, never a longer life — with
+        // the step capped so time-to-expiry stays positive; a lower resulting price is time
+        // decay, hence theta's usual negative sign for a long option position.
+        val timeH = minOf(timeBump, market.timeToExpiry / 2)
+        val timeDecayedPrice = priceOf(market.copy(timeToExpiry = market.timeToExpiry - timeH))
+        val theta = (timeDecayedPrice - basePrice) / timeH
 
         return Greeks(delta, gamma, vega, theta, rho)
     }

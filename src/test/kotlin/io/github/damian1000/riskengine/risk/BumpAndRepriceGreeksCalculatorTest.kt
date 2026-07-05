@@ -7,6 +7,7 @@ import io.github.damian1000.riskengine.model.OptionType
 import io.github.damian1000.riskengine.pricing.BlackScholesPricer
 import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.closeTo
+import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
 class BumpAndRepriceGreeksCalculatorTest {
@@ -49,5 +50,48 @@ class BumpAndRepriceGreeksCalculatorTest {
         val putGreeks = calculator.greeks(put, market, pricer)
         assertThat(callGreeks.gamma, closeTo(putGreeks.gamma, 1e-6))
         assertThat(callGreeks.vega, closeTo(putGreeks.vega, 1e-6))
+    }
+
+    @Test
+    fun vegaIsPositiveAndRhoSignsFollowTheOptionType() {
+        val call = EquityOption(strike = Money.of("40"), type = OptionType.CALL)
+        val put = EquityOption(strike = Money.of("40"), type = OptionType.PUT)
+        val callGreeks = calculator.greeks(call, market, pricer)
+        val putGreeks = calculator.greeks(put, market, pricer)
+        assertTrue(callGreeks.vega > 0, "long options gain value with volatility")
+        assertTrue(callGreeks.rho > 0, "a call gains value as rates rise")
+        assertTrue(putGreeks.rho < 0, "a put loses value as rates rise")
+    }
+
+    @Test
+    fun thetaIsNegativeForAnAtTheMoneyCall() {
+        val call = EquityOption(strike = Money.of("42"), type = OptionType.CALL)
+        val greeks = calculator.greeks(call, market, pricer)
+        assertTrue(greeks.theta < 0, "an ATM option decays as expiry approaches, got ${greeks.theta}")
+    }
+
+    @Test
+    fun greeksStayFiniteForAnOptionExpiringWithinADay() {
+        // The default one-day theta bump would push time-to-expiry negative here; the adaptive
+        // step must cap it so the reprice stays inside the pricer's domain.
+        val nearExpiry = market.copy(timeToExpiry = 0.5 / 365)
+        val call = EquityOption(strike = Money.of("42"), type = OptionType.CALL)
+
+        val greeks = calculator.greeks(call, nearExpiry, pricer)
+
+        assertTrue(greeks.theta.isFinite() && greeks.theta < 0, "expected finite decay, got ${greeks.theta}")
+        assertTrue(greeks.delta.isFinite() && greeks.vega.isFinite() && greeks.rho.isFinite())
+    }
+
+    @Test
+    fun vegaBumpShrinksToStayInsideAPositiveVolatilityDomain() {
+        // Volatility smaller than the default 1e-4 bump: a naive down-bump would go negative and
+        // be rejected by MarketData's validation.
+        val tinyVol = market.copy(volatility = 5e-5)
+        val call = EquityOption(strike = Money.of("42"), type = OptionType.CALL)
+
+        val greeks = calculator.greeks(call, tinyVol, pricer)
+
+        assertTrue(greeks.vega.isFinite(), "expected a finite vega, got ${greeks.vega}")
     }
 }

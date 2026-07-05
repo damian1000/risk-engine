@@ -1,4 +1,4 @@
-## Risk Engine
+# Risk Engine
 
 [![CI](https://github.com/damian1000/risk-engine/actions/workflows/ci.yml/badge.svg)](https://github.com/damian1000/risk-engine/actions/workflows/ci.yml)
 [![CodeQL](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml)
