@@ -4,11 +4,11 @@
 [![CodeQL](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/damian1000/risk-engine/graph/badge.svg)](https://codecov.io/gh/damian1000/risk-engine)
 
-A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, and the invariants that prove they're correct.
+A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, VaR and Expected Shortfall, and the invariants that prove they're correct.
 
 ## Problem
 
-Price a European vanilla option (call or put) on a cash equity underlying, derive its risk sensitivities (Greeks), and aggregate both across a portfolio of equity and option positions, in a way that's validated — not just implemented.
+Price a European vanilla option (call or put) on a cash equity underlying, derive its risk sensitivities (Greeks), aggregate both across a portfolio of equity and option positions, and measure the book's tail risk — in a way that's validated, not just implemented.
 
 ## Design
 
@@ -17,6 +17,7 @@ Price a European vanilla option (call or put) on a cash equity underlying, deriv
 - **`Pricer` is the one real seam** — an interface `BlackScholesPricer` implements, so a different model could be swapped in without touching anything that calls it.
 - **Greeks are bump-and-reprice, not closed-form.** `BumpAndRepriceGreeksCalculator` numerically differentiates any `Pricer`'s output — it works even for a pricer with no closed-form derivative. See [Design decisions](#design-decisions).
 - **A `Portfolio` is a list of signed `Position`s** in a sealed `Instrument` hierarchy: the cash `Equity` underlying, or an `EquityOption` on it. `PortfolioRiskAggregator` scales each position's per-unit value and Greeks by its quantity and sums; a long-equity, short-call book comes out with the expected net delta and short gamma.
+- **VaR and Expected Shortfall come in two implementations of one `VarCalculator` interface**, fed by the same scenario set (relative spot returns): `ParametricVarCalculator` (delta-normal — one Greeks call, no revaluation, no convexity) and `HistoricalSimulationVarCalculator` (full revaluation through the pricer at every scenario, so option convexity is kept). Both are pure functions of the portfolio, the market, and the returns — no I/O.
 
 ## Design decisions
 
@@ -26,7 +27,7 @@ Price a European vanilla option (call or put) on a cash equity underlying, deriv
 
 ## Correctness strategy
 
-Three independent layers:
+Four independent layers:
 
 1. **Published-value tests** — `BlackScholesPricerTest` checks against textbook results: Hull's _Options, Futures, and Other Derivatives_ example (S=42, K=40, r=10%, σ=20%, T=0.5y, no dividends → call ≈ 4.7594, put ≈ 0.8086) and Haug's _The Complete Guide to Option Pricing Formulas_ generalized example with a 5% dividend yield (put ≈ 4.0870). The published numbers were re-derived against Python's exact `erf`-based normal CDF while writing the tests, which is what lets the assertion tolerances stay tight.
 2. **Cross-validation against an independent implementation** — `StrataCrossValidationTest` re-prices 1,000 randomized market/option combinations per run through [OpenGamma Strata](https://github.com/OpenGamma/Strata)'s Black formula (test-scoped dependency) and requires agreement within a bound derived from the CDF approximation's published error, `1e-7·(S+K)`. Anything a transcribed value can't catch — a sign error that only shows on negative rates, a branch that misprices deep in-the-money puts — has a thousand chances per build to surface here.
@@ -35,6 +36,7 @@ Three independent layers:
    - **Delta bounds**: a call's delta is always in `[0, 1]`; a put's is always in `[-1, 0]`.
    - **Monotonicity**: a call's price never falls, and a put's never rises, as spot rises.
    - **Portfolio parity**: `{+1 call, -1 put, -e^(-qT) equity}` aggregates to `-K·e^(-rT)` in value and zero in delta — the aggregator has no parity knowledge, so the invariant only holds if it scales and sums both instrument kinds properly.
+4. **Method-against-method** — `VarMethodComparisonTest` runs both VaR implementations over the same 10,000 fixed-seed normal scenarios. On an equity-only book they agree (within 5% on VaR); on a long option book, historical simulation comes in below the delta-normal number, because full revaluation keeps the gamma cushion the linear approximation drops. The divergence is asserted, not just the agreement — either failing to appear is a bug.
 
 ## Run
 
@@ -66,6 +68,14 @@ val book = Portfolio.of(Position(Equity, 100.0), Position(call, -100.0))
 
 aggregator.value(book, market)  // 3724.057761 (100·42 - 100·4.75942239)
 aggregator.greeks(book, market) // Greeks(delta=22.08..., gamma=-4.99..., ...) — net delta, short gamma
+
+// Tail risk from a set of historical daily returns, at 99% confidence.
+val dailyReturns = listOf(-0.021, 0.004, 0.013, -0.008, /* ... */)
+
+ParametricVarCalculator(aggregator).measure(book, market, dailyReturns, 0.99)
+HistoricalSimulationVarCalculator(aggregator).measure(book, market, dailyReturns, 0.99)
+// Both return RiskMeasures(valueAtRisk=..., expectedShortfall=...); they agree on a linear
+// book and diverge on an option book — see VarMethodComparisonTest.
 ```
 
 ## Stack
