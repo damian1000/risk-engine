@@ -4,11 +4,11 @@
 [![CodeQL](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/damian1000/risk-engine/graph/badge.svg)](https://codecov.io/gh/damian1000/risk-engine)
 
-A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, VaR and Expected Shortfall, and the invariants that prove they're correct.
+A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, VaR and Expected Shortfall, PnL explain, and the invariants that prove they're correct.
 
 ## Problem
 
-Price a European vanilla option (call or put) on a cash equity underlying, derive its risk sensitivities (Greeks), aggregate both across a portfolio of equity and option positions, and measure the book's tail risk — in a way that's validated, not just implemented.
+Price a European vanilla option (call or put) on a cash equity underlying, derive its risk sensitivities (Greeks), aggregate both across a portfolio of equity and option positions, measure the book's tail risk, and attribute a day's PnL to the moves that drove it — in a way that's validated, not just implemented.
 
 ## Design
 
@@ -18,6 +18,7 @@ Price a European vanilla option (call or put) on a cash equity underlying, deriv
 - **Greeks are bump-and-reprice, not closed-form.** `BumpAndRepriceGreeksCalculator` numerically differentiates any `Pricer`'s output — it works even for a pricer with no closed-form derivative. See [Design decisions](#design-decisions).
 - **A `Portfolio` is a list of signed `Position`s** in a sealed `Instrument` hierarchy: the cash `Equity` underlying, or an `EquityOption` on it. `PortfolioRiskAggregator` scales each position's per-unit value and Greeks by its quantity and sums; a long-equity, short-call book comes out with the expected net delta and short gamma.
 - **VaR and Expected Shortfall come in two implementations of one `VarCalculator` interface**, fed by the same scenario set (relative spot returns): `ParametricVarCalculator` (delta-normal — one Greeks call, no revaluation, no convexity) and `HistoricalSimulationVarCalculator` (full revaluation through the pricer at every scenario, so option convexity is kept). Both are pure functions of the portfolio, the market, and the returns — no I/O.
+- **`PnlExplainer` attributes the PnL between two market snapshots** to delta, gamma, vega, theta, and rho at the start of the move, with an explicit residual for what the Greeks don't capture (cross terms, higher orders, inputs with no Greek). `explained + residual = actual` holds exactly by construction; tests pin the residual's order — halving a vol move shrinks it by four.
 
 ## Design decisions
 
@@ -76,6 +77,12 @@ ParametricVarCalculator(aggregator).measure(book, market, dailyReturns, 0.99)
 HistoricalSimulationVarCalculator(aggregator).measure(book, market, dailyReturns, 0.99)
 // Both return RiskMeasures(valueAtRisk=..., expectedShortfall=...); they agree on a linear
 // book and diverge on an option book — see VarMethodComparisonTest.
+
+// Where did the day's PnL come from?
+val endOfDay = market.copy(spot = Money.of("41.30"), volatility = 0.22, timeToExpiry = 0.5 - 1.0 / 365)
+PnlExplainer(aggregator).explain(book, market, endOfDay)
+// PnlExplanation(actual=..., deltaPnl=..., gammaPnl=..., vegaPnl=..., thetaPnl=..., rhoPnl=...)
+// with .explained and .residual: explained + residual = actual, exactly.
 ```
 
 ## Stack

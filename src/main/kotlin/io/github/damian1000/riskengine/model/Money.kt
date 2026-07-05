@@ -15,6 +15,8 @@ value class Money(
 ) : Comparable<Money> {
     operator fun plus(other: Money): Money = Money(amount + other.amount)
 
+    operator fun minus(other: Money): Money = Money(amount - other.amount)
+
     operator fun times(quantity: Double): Money = Money(amount * BigDecimal.valueOf(quantity))
 
     override fun compareTo(other: Money): Int = amount.compareTo(other.amount)
