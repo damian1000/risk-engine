@@ -38,7 +38,9 @@ class BumpAndRepriceGreeksCalculator(
         market: MarketData,
         pricer: Pricer,
     ): Greeks {
-        fun priceOf(m: MarketData) = pricer.price(option, m).amount.toDouble()
+        // Differentiates the unrounded price: gamma divides by bump², where even [Money]'s
+        // 8-decimal presentation rounding is large enough to distort the result.
+        fun priceOf(m: MarketData) = pricer.priceValue(option, m)
 
         val spot = market.spot.amount.toDouble()
         val spotBump = spot * relativeSpotBump

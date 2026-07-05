@@ -9,6 +9,9 @@ import org.hamcrest.MatcherAssert.assertThat
 import org.hamcrest.Matchers.closeTo
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
+import kotlin.math.PI
+import kotlin.math.exp
+import kotlin.math.sqrt
 
 class BumpAndRepriceGreeksCalculatorTest {
     private val pricer = BlackScholesPricer()
@@ -39,6 +42,20 @@ class BumpAndRepriceGreeksCalculatorTest {
         val greeks = calculator.greeks(put, market, pricer)
         // Closed-form put delta is N(d1) - 1.
         assertThat(greeks.delta, closeTo(0.7791312909426689 - 1.0, 1e-5))
+    }
+
+    @Test
+    fun gammaMatchesClosedFormPhiD1OverSSigmaRootT() {
+        val call = EquityOption(strike = Money.of("40"), type = OptionType.CALL)
+        val greeks = calculator.greeks(call, market, pricer)
+        // Closed-form gamma is φ(d1) / (S·σ·√T). The second difference divides by bump²
+        // (~1.8e-5 here), so this tolerance is only reachable when the calculator
+        // differentiates the unrounded price: 8-decimal presentation rounding alone can
+        // inject an error orders of magnitude above 1e-6.
+        val d1 = 0.7692626281060315
+        val phiD1 = exp(-d1 * d1 / 2) / sqrt(2 * PI)
+        val expectedGamma = phiD1 / (42.0 * 0.20 * sqrt(0.5))
+        assertThat(greeks.gamma, closeTo(expectedGamma, 1e-6))
     }
 
     @Test

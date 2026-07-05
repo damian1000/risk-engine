@@ -16,6 +16,15 @@ interface Pricer {
         option: EquityOption,
         market: MarketData,
     ): Money
+
+    /**
+     * The same price as an unrounded `Double`, for numerical work: finite differences divide by
+     * bump² (gamma), where [price]'s presentation rounding is large enough to distort the result.
+     */
+    fun priceValue(
+        option: EquityOption,
+        market: MarketData,
+    ): Double
 }
 
 /**
@@ -27,7 +36,12 @@ class BlackScholesPricer : Pricer {
     override fun price(
         option: EquityOption,
         market: MarketData,
-    ): Money {
+    ): Money = Money(BigDecimal.valueOf(priceValue(option, market)).setScale(8, RoundingMode.HALF_UP))
+
+    override fun priceValue(
+        option: EquityOption,
+        market: MarketData,
+    ): Double {
         val spot = market.spot.amount.toDouble()
         val strike = option.strike.amount.toDouble()
         val vol = market.volatility
@@ -51,7 +65,6 @@ class BlackScholesPricer : Pricer {
 
         // A vanilla option's true price is never negative; clamp floating-point noise from
         // catastrophic cancellation on deep out-of-the-money inputs rather than let it leak out.
-        val nonNegative = maxOf(price, 0.0)
-        return Money(BigDecimal.valueOf(nonNegative).setScale(8, RoundingMode.HALF_UP))
+        return maxOf(price, 0.0)
     }
 }
