@@ -4,7 +4,7 @@
 [![CodeQL](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml/badge.svg)](https://github.com/damian1000/risk-engine/actions/workflows/codeql.yml)
 [![codecov](https://codecov.io/gh/damian1000/risk-engine/graph/badge.svg)](https://codecov.io/gh/damian1000/risk-engine)
 
-A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, VaR and Expected Shortfall, PnL explain, and the invariants that prove they're correct.
+A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, VaR and Expected Shortfall, PnL explain, a rendered risk report, and the invariants that prove they're correct.
 
 ## Problem
 
@@ -19,6 +19,7 @@ Price a European vanilla option (call or put) on a cash equity underlying, deriv
 - **A `Portfolio` is a list of signed `Position`s** in a sealed `Instrument` hierarchy: the cash `Equity` underlying, or an `EquityOption` on it. `PortfolioRiskAggregator` scales each position's per-unit value and Greeks by its quantity and sums; a long-equity, short-call book comes out with the expected net delta and short gamma.
 - **VaR and Expected Shortfall come in two implementations of one `VarCalculator` interface**, fed by the same scenario set (relative spot returns): `ParametricVarCalculator` (delta-normal — one Greeks call, no revaluation, no convexity) and `HistoricalSimulationVarCalculator` (full revaluation through the pricer at every scenario, so option convexity is kept). Both are pure functions of the portfolio, the market, and the returns — no I/O.
 - **`PnlExplainer` attributes the PnL between two market snapshots** to delta, gamma, vega, theta, and rho at the start of the move, with an explicit residual for what the Greeks don't capture (cross terms, higher orders, inputs with no Greek). `explained + residual = actual` holds exactly by construction; tests pin the residual's order — halving a vol move shrinks it by four.
+- **`RiskReportAssembler` gathers all of the above into one `RiskReport`** — valuation, aggregated Greeks, VaR/ES by both methods, and (given a prior mark) the day's PnL attribution. `RiskReport.toJson()` is the wire form a web view renders; `RiskReportRenderer` is the fixed-width text form. It adds no maths — it composes the calculators — so the report is only ever as correct as the tested nodes beneath it.
 
 ## Design decisions
 
@@ -84,6 +85,45 @@ PnlExplainer(aggregator).explain(book, market, endOfDay)
 // PnlExplanation(actual=..., deltaPnl=..., gammaPnl=..., vegaPnl=..., thetaPnl=..., rhoPnl=...)
 // with .explained and .residual: explained + residual = actual, exactly.
 ```
+
+## Risk report
+
+`RiskReportAssembler` composes the calculators above into one `RiskReport` — the artifact a risk desk reads at the close. It carries the valuation, the aggregated Greeks, VaR and Expected Shortfall by both methods side by side, and, when a prior mark is supplied, the day's PnL attribution.
+
+```kotlin
+val report = RiskReportAssembler.standard()
+    .assemble(book, market, dailyReturns, confidence = 0.99, priorMarket = yesterday)
+report.toJson()               // the wire form a web view renders
+RiskReportRenderer().render(report)
+```
+
+```
+=== Risk Report ===
+Valuation           3,724.06
+
+Greeks
+  delta                22.09
+  gamma                -5.00
+  vega               -881.35
+  theta               456.22
+  rho              -1,398.20
+
+Value at Risk / Expected Shortfall (99% confidence)
+  method                 VaR            ES
+  parametric           39.57         45.33
+  historical           32.05         32.05
+
+PnL explain
+  actual              -11.13
+  delta               -11.54
+  gamma                -0.81
+  vega                  0.00
+  theta                 1.25
+  rho                   0.00
+  residual             -0.03
+```
+
+The two VaR rows sit together on purpose: on this short-gamma option book historical simulation comes in below the delta-normal number, the same divergence `VarMethodComparisonTest` asserts. `RiskReport` computes on the tested library and serialises exactly; rounding for display lives only in the renderer.
 
 ## Stack
 
