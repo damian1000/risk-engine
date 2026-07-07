@@ -1,0 +1,16 @@
+[Unit]
+Description=Risk engine live risk view
+After=network.target
+
+[Service]
+Environment=JAVA_HOME=/opt/jdk25
+Environment=JAVA_OPTS=-Xmx160m
+Environment=PORT=8081
+ExecStart=/home/ubuntu/risk-engine/bin/risk-engine
+Restart=on-failure
+RestartSec=2
+NoNewPrivileges=true
+User=ubuntu
+
+[Install]
+WantedBy=multi-user.target
