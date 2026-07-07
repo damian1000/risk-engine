@@ -1,0 +1,84 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Risk Engine — live report</title>
+    <link rel="stylesheet" href="/app.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Risk Engine</h1>
+      <p class="lede">
+        Valuation, Greeks, Value at Risk and Expected Shortfall by two methods,
+        and a day's PnL attribution — recomputed on each change over the same
+        pricing library the tests validate.
+      </p>
+
+      <form id="book" aria-label="Portfolio and market inputs">
+        <fieldset>
+          <legend>Positions</legend>
+          <label
+            >Equity shares
+            <input name="equityQty" type="number" step="1" value="100"
+          /></label>
+          <label
+            >Option contracts
+            <input name="optionQty" type="number" step="1" value="-100"
+          /></label>
+          <label
+            >Strike <input name="strike" type="number" step="0.01" value="40"
+          /></label>
+          <label
+            >Type
+            <select name="optionType">
+              <option value="CALL">Call</option>
+              <option value="PUT">Put</option>
+            </select>
+          </label>
+        </fieldset>
+
+        <fieldset>
+          <legend>Market</legend>
+          <label
+            >Spot <input name="spot" type="number" step="0.01" value="42"
+          /></label>
+          <label
+            >Volatility
+            <input name="volatility" type="number" step="0.01" value="0.20"
+          /></label>
+          <label
+            >Risk-free rate
+            <input name="riskFreeRate" type="number" step="0.01" value="0.10"
+          /></label>
+          <label
+            >Dividend yield
+            <input name="dividendYield" type="number" step="0.01" value="0.00"
+          /></label>
+          <label
+            >Years to expiry
+            <input name="timeToExpiry" type="number" step="0.01" value="0.50"
+          /></label>
+          <label
+            >Prior spot
+            <input name="priorSpot" type="number" step="0.01" value="42.60"
+          /></label>
+          <label
+            >Confidence
+            <input name="confidence" type="number" step="0.01" value="0.99"
+          /></label>
+        </fieldset>
+
+        <button type="submit">Recompute</button>
+      </form>
+
+      <section
+        id="report"
+        aria-live="polite"
+        aria-label="Risk report"
+      ></section>
+      <p id="error" role="alert" hidden></p>
+    </main>
+    <script src="/app.js"></script>
+  </body>
+</html>

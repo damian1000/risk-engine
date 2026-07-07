@@ -44,7 +44,12 @@ Four independent layers:
 
 ```bash
 ./gradlew test    # behavioural, published-value, cross-validation, and property-based tests
+./gradlew run     # the live risk view on http://localhost:8081
 ```
+
+## Live view
+
+`./gradlew run` starts a dependency-free JDK-`HttpServer` front end: edit the book and market, and the valuation, Greeks, both VaR methods, and the day's PnL attribution recompute server-side and re-render. The page is a thin renderer over `RiskReport.toJson()` — every number is produced by the same calculators the tests validate, `/api/report` serves the report as JSON, and `/healthz` gates deployment.
 
 ## Use it
 

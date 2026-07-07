@@ -1,5 +1,6 @@
 plugins {
     id 'java'
+    id 'application'
     id 'org.jetbrains.kotlin.jvm' version '2.3.21' // pinned: CodeQL's Kotlin extractor caps at <2.3.30
     id 'jacoco'
     id 'com.diffplug.spotless' version '8.8.0'
@@ -19,6 +20,12 @@ kotlin {
     compilerOptions {
         jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
     }
+}
+
+// The live risk view: a dependency-free JDK-HttpServer wrapper serving RiskReport as JSON.
+application {
+    applicationName = 'risk-engine'
+    mainClass = 'io.github.damian1000.riskengine.web.RiskWebServerKt'
 }
 
 repositories {
@@ -45,8 +52,18 @@ test {
     finalizedBy jacocoTestReport
 }
 
+// Only the process entry point (RiskWebServerKt — main() binds the real port and blocks) is
+// excluded, like a CLI MainKt. The rest of the web layer — routing, request parsing, JSON — is
+// exercised against a loopback HttpServer and counted.
+def coverageExclusions = ['**/web/RiskWebServerKt.class']
+
 jacocoTestReport {
     dependsOn test
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, excludes: coverageExclusions)
+        }))
+    }
     reports {
         xml.required = true
         html.required = true
@@ -55,6 +72,11 @@ jacocoTestReport {
 
 jacocoTestCoverageVerification {
     dependsOn jacocoTestReport
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, excludes: coverageExclusions)
+        }))
+    }
     violationRules {
         rule {
             limit {
@@ -76,6 +98,13 @@ spotless {
     kotlinGradle {
         target '*.gradle.kts'
         ktlint('1.5.0')
+    }
+    // Front-end assets held to the same bar as the Kotlin: Prettier formats and CI fails on drift.
+    format 'web', {
+        target 'src/main/resources/web/**/*.html', 'src/main/resources/web/**/*.css', 'src/main/resources/web/**/*.js'
+        prettier('3.4.2')
+        trimTrailingWhitespace()
+        endWithNewline()
     }
     // Config/docs (YAML workflows, Markdown) held to the same bar as the Kotlin.
     format 'config', {
