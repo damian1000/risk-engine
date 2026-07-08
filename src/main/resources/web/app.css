@@ -1,181 +1,334 @@
+/* Terminal-style dark UI, shared with orderbook: near-black canvas, warm-white ink, a teal brand
+   accent, green/red for gain/loss, one monospace family with tabular figures so every digit sits
+   in a fixed column. See workspace-config/CLAUDE.md -> "Live demo look and feel" for the shared
+   token set every live demo draws from. */
+
 :root {
-  --bg: #0f1419;
-  --panel: #1a212b;
-  --ink: #e6edf3;
-  --muted: #8b98a5;
-  --line: #2d3742;
-  --accent: #4c9aff;
-  --loss: #ff6b6b;
-  --gain: #4cd08a;
+  --bg-base: #08090c;
+  --bg-1: #0e0f14;
+  --bg-2: #14151c;
+  --bg-pin: #050608;
+
+  --rule: #1f2230;
+  --rule-bright: #2e3244;
+
+  --brand: #14b8a6;
+  --brand-glow: rgba(20, 184, 166, 0.3);
+  --cyan: #5fc3e7;
+
+  --ink: #e8e8ec;
+  --ink-2: #b4b4be;
+  --ink-3: #888898;
+  --ink-4: #7d7f91;
+
+  --gain: #34d399;
+  --loss: #f87171;
+
+  /* System monospace stack: the page stays fully self-hosted -- no third-party font CDN. */
+  --mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas,
+    "Cascadia Mono", monospace;
 }
 
 * {
   box-sizing: border-box;
 }
 
+html,
+body {
+  height: 100%;
+}
+
 body {
   margin: 0;
-  background: var(--bg);
-  color: var(--ink);
-  font:
-    15px/1.5 -apple-system,
-    BlinkMacSystemFont,
-    "Segoe UI",
-    Roboto,
-    sans-serif;
-}
-
-main {
-  max-width: 900px;
-  margin: 0 auto;
-  padding: 2rem 1.25rem 4rem;
-}
-
-h1 {
-  margin: 0 0 0.25rem;
-  font-size: 1.6rem;
-  letter-spacing: -0.01em;
-}
-
-.lede {
-  margin: 0 0 1.75rem;
-  color: var(--muted);
-  max-width: 60ch;
-}
-
-form {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 1rem;
-  margin-bottom: 1.75rem;
-}
-
-fieldset {
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 1rem 1.1rem 1.2rem;
-  margin: 0;
-}
-
-legend {
-  padding: 0 0.4rem;
-  color: var(--accent);
-  font-weight: 600;
-  font-size: 0.85rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-}
-
-label {
+  min-height: 100vh;
   display: flex;
-  justify-content: space-between;
-  align-items: center;
-  gap: 0.75rem;
-  margin-top: 0.6rem;
-  color: var(--muted);
-}
-
-input,
-select {
-  width: 8.5rem;
-  padding: 0.35rem 0.5rem;
-  background: var(--bg);
+  flex-direction: column;
+  background: var(--bg-base);
   color: var(--ink);
-  border: 1px solid var(--line);
-  border-radius: 5px;
-  font: inherit;
-  text-align: right;
+  font-family: var(--mono);
+  font-size: 13px;
+  line-height: 1.45;
+  font-variant-numeric: tabular-nums slashed-zero;
 }
 
-select {
-  text-align: left;
+a {
+  color: var(--cyan);
+  text-decoration: none;
 }
 
-button {
-  grid-column: 1 / -1;
-  justify-self: start;
-  padding: 0.55rem 1.4rem;
-  background: var(--accent);
-  color: #04101f;
-  border: 0;
-  border-radius: 6px;
-  font: inherit;
-  font-weight: 600;
-  cursor: pointer;
+a:hover {
+  color: var(--brand);
 }
 
-button:hover {
-  filter: brightness(1.08);
-}
-
-#report {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
-  gap: 1rem;
-}
-
-.card {
-  background: var(--panel);
-  border: 1px solid var(--line);
-  border-radius: 8px;
-  padding: 1rem 1.1rem 1.2rem;
-}
-
-.card h2 {
-  margin: 0 0 0.7rem;
-  font-size: 0.8rem;
+.eyebrow {
+  font-size: 10px;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--muted);
+  color: var(--ink-3);
+}
+
+/* ===== Chrome: top bar + status bar ===================================== */
+.topbar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  height: 46px;
+  padding: 0 18px;
+  background: var(--bg-pin);
+  border-bottom: 1px solid var(--rule-bright);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  font-size: 14px;
+}
+
+.brand .mark {
+  color: var(--brand);
+  text-shadow: var(--brand-glow) 0 0 10px;
+}
+
+.statusbar {
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  height: 30px;
+  padding: 0 18px;
+  background: var(--bg-pin);
+  border-top: 1px solid var(--rule-bright);
+  font-size: 10.5px;
+  color: var(--ink-3);
+}
+
+.statusbar .grow {
+  margin-left: auto;
+}
+
+.sb-item {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+/* ===== Layout ========================================================== */
+.grid {
+  flex: 1;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 340px;
+  gap: 14px;
+  width: 100%;
+  max-width: 1080px;
+  margin: 0 auto;
+  padding: 14px;
+  align-items: start;
+}
+
+.panel {
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background: var(--bg-1);
+  border: 1px solid var(--rule);
+}
+
+.phead {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0;
+  padding: 9px 14px;
+  border-bottom: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.phead .sub {
+  margin-left: auto;
+  letter-spacing: 0.08em;
+  color: var(--ink-4);
+}
+
+.side {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+/* ===== Risk report ====================================================== */
+.report-block {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--rule);
+}
+
+.report-block:last-child {
+  border-bottom: none;
+}
+
+.report-block h3 {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  margin: 0 0 8px;
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+}
+
+.report-block h3 .sub {
+  margin-left: auto;
+  color: var(--ink-4);
 }
 
 .valuation {
-  font-size: 1.9rem;
-  font-variant-numeric: tabular-nums;
+  font-size: 22px;
+  font-weight: 600;
 }
 
-table {
+table.risk {
   width: 100%;
   border-collapse: collapse;
-  font-variant-numeric: tabular-nums;
 }
 
-th,
-td {
+table.risk th,
+table.risk td {
+  padding: 3px 0;
   text-align: right;
-  padding: 0.22rem 0;
 }
 
-th:first-child,
-td:first-child {
+table.risk th:first-child,
+table.risk td:first-child {
   text-align: left;
-  color: var(--muted);
+  color: var(--ink-3);
 }
 
-thead th {
-  color: var(--muted);
-  font-weight: 500;
-  border-bottom: 1px solid var(--line);
-}
-
-.neg {
-  color: var(--loss);
+table.risk thead th {
+  font-size: 9.5px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--ink-4);
+  border-bottom: 1px solid var(--rule);
+  padding-bottom: 5px;
 }
 
 .pos {
   color: var(--gain);
 }
 
-#error {
-  margin-top: 1rem;
-  padding: 0.75rem 1rem;
-  border: 1px solid var(--loss);
-  border-radius: 6px;
+.neg {
   color: var(--loss);
 }
 
-@media (max-width: 640px) {
-  form {
+.empty {
+  padding: 14px;
+  text-align: center;
+  color: var(--ink-4);
+}
+
+.error {
+  margin: 12px 14px;
+  padding: 9px 11px;
+  border: 1px solid var(--loss);
+  color: var(--loss);
+  font-size: 11px;
+}
+
+/* ===== Portfolio & market form (styled like orderbook's order ticket) === */
+.ticket {
+  padding: 14px;
+}
+
+.ticket .phead {
+  margin: -14px -14px 14px;
+  padding: 9px 14px;
+}
+
+.ticket-section {
+  margin: 16px 0 10px;
+  padding-top: 12px;
+  border-top: 1px solid var(--rule);
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ticket-section:first-of-type {
+  margin-top: 0;
+  padding-top: 0;
+  border-top: none;
+}
+
+.ticket label {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-bottom: 11px;
+  font-size: 9.5px;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--ink-3);
+}
+
+.ticket input,
+.ticket select {
+  width: 100%;
+  padding: 8px 10px;
+  background: var(--bg-pin);
+  border: 1px solid var(--rule-bright);
+  color: var(--ink);
+  font-family: var(--mono);
+  font-size: 15px;
+}
+
+.ticket select {
+  text-align: left;
+}
+
+.ticket input:focus,
+.ticket select:focus {
+  outline: 0;
+  border-color: var(--cyan);
+  box-shadow:
+    0 0 0 1px var(--cyan),
+    0 0 9px var(--brand-glow);
+}
+
+.submit {
+  width: 100%;
+  margin-top: 3px;
+  padding: 11px;
+  border: 1px solid transparent;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+
+.submit.recompute {
+  background: var(--brand);
+  border-color: var(--brand);
+  color: #04110c;
+}
+
+.submit:hover {
+  filter: brightness(1.08);
+}
+
+/* ===== Responsive ===================================================== */
+@media (max-width: 760px) {
+  .grid {
     grid-template-columns: 1fr;
   }
 }
