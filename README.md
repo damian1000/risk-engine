@@ -6,6 +6,8 @@
 
 A risk framework for a vanilla equity option: pricing, Greeks, portfolio aggregation, VaR and Expected Shortfall, PnL explain, a rendered risk report, and the invariants that prove they're correct.
 
+**▶ Try it live:** https://risk.damianhoward.com — edit the book and market, and watch the valuation, Greeks, both VaR methods, and the day's PnL recompute.
+
 ## Problem
 
 Price a European vanilla option (call or put) on a cash equity underlying, derive its risk sensitivities (Greeks), aggregate both across a portfolio of equity and option positions, measure the book's tail risk, and attribute a day's PnL to the moves that drove it — in a way that's validated, not just implemented.
