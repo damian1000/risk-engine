@@ -1,8 +1,8 @@
 name: Deploy
 
-# Manual only until the first deploy proves green against the live box; then add
-# `push: { branches: [main] }` here to deploy on every merge.
 on:
+  push:
+    branches: [main]
   workflow_dispatch:
 
 permissions:
