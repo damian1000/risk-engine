@@ -14,9 +14,29 @@
       </div>
     </header>
 
+    <div class="stats">
+      <div class="stat">
+        <span class="k">Valuation</span
+        ><span class="v" id="st-valuation">&mdash;</span>
+      </div>
+      <div class="stat">
+        <span class="k">Net Delta</span
+        ><span class="v" id="st-delta">&mdash;</span>
+      </div>
+      <div class="stat">
+        <span class="k">VaR 99%</span><span class="v" id="st-var">&mdash;</span>
+      </div>
+      <div class="stat">
+        <span class="k">Day PnL</span><span class="v" id="st-pnl">&mdash;</span>
+      </div>
+    </div>
+
     <main class="grid">
       <section class="panel report" aria-labelledby="report-heading">
-        <h2 class="phead" id="report-heading">Risk Report</h2>
+        <h2 class="phead" id="report-heading">
+          Risk Report
+          <span class="sub">Greeks &middot; VaR/ES &middot; PnL</span>
+        </h2>
         <div id="report" aria-live="polite"></div>
         <p id="error" class="error" role="alert" hidden></p>
       </section>
@@ -26,53 +46,63 @@
           <h2 class="phead" id="book-heading">Portfolio &amp; Market</h2>
           <form id="book" aria-label="Portfolio and market inputs">
             <div class="ticket-section">Positions</div>
-            <label
-              >Equity shares
-              <input name="equityQty" type="number" step="1" value="100"
-            /></label>
-            <label
-              >Option contracts
-              <input name="optionQty" type="number" step="1" value="-100"
-            /></label>
-            <label
-              >Strike <input name="strike" type="number" step="0.01" value="40"
-            /></label>
-            <label
-              >Type
-              <select name="optionType">
-                <option value="CALL">Call</option>
-                <option value="PUT">Put</option>
-              </select>
-            </label>
+            <div class="field-grid">
+              <label
+                >Equity shares
+                <input name="equityQty" type="number" step="1" value="100"
+              /></label>
+              <label
+                >Option contracts
+                <input name="optionQty" type="number" step="1" value="-100"
+              /></label>
+              <label
+                >Strike
+                <input name="strike" type="number" step="0.01" value="40"
+              /></label>
+              <label
+                >Type
+                <select name="optionType">
+                  <option value="CALL">Call</option>
+                  <option value="PUT">Put</option>
+                </select>
+              </label>
+            </div>
 
             <div class="ticket-section">Market</div>
-            <label
-              >Spot <input name="spot" type="number" step="0.01" value="42"
-            /></label>
-            <label
-              >Volatility
-              <input name="volatility" type="number" step="0.01" value="0.20"
-            /></label>
-            <label
-              >Risk-free rate %
-              <input name="riskFreeRate" type="number" step="0.01" value="10"
-            /></label>
-            <label
-              >Dividend yield %
-              <input name="dividendYield" type="number" step="0.01" value="0"
-            /></label>
-            <label
-              >Years to expiry
-              <input name="timeToExpiry" type="number" step="0.01" value="0.50"
-            /></label>
-            <label
-              >Prior spot
-              <input name="priorSpot" type="number" step="0.01" value="42.60"
-            /></label>
-            <label
-              >Confidence
-              <input name="confidence" type="number" step="0.01" value="0.99"
-            /></label>
+            <div class="field-grid">
+              <label
+                >Spot <input name="spot" type="number" step="0.01" value="42"
+              /></label>
+              <label
+                >Volatility
+                <input name="volatility" type="number" step="0.01" value="0.20"
+              /></label>
+              <label
+                >Risk-free rate %
+                <input name="riskFreeRate" type="number" step="0.01" value="10"
+              /></label>
+              <label
+                >Dividend yield %
+                <input name="dividendYield" type="number" step="0.01" value="0"
+              /></label>
+              <label
+                >Years to expiry
+                <input
+                  name="timeToExpiry"
+                  type="number"
+                  step="0.01"
+                  value="0.50"
+                />
+              </label>
+              <label
+                >Prior spot
+                <input name="priorSpot" type="number" step="0.01" value="42.60"
+              /></label>
+              <label
+                >Confidence
+                <input name="confidence" type="number" step="0.01" value="0.99"
+              /></label>
+            </div>
 
             <button type="submit" class="submit recompute">Recompute</button>
           </form>
@@ -84,7 +114,7 @@
       <span class="sb-item">recomputed <span id="age">&mdash;</span></span>
       <span class="sb-item">requests <span id="reqs">0</span></span>
       <span class="grow"></span>
-      <span class="sb-item"
+      <span class="sb-item tagline"
         >closed-form Black-Scholes &middot; bump-and-reprice Greeks</span
       >
       <span class="sb-item">

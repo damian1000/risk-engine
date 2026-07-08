@@ -3,6 +3,10 @@ const reportEl = document.getElementById("report");
 const errorEl = document.getElementById("error");
 const ageEl = document.getElementById("age");
 const reqsEl = document.getElementById("reqs");
+const stValuationEl = document.getElementById("st-valuation");
+const stDeltaEl = document.getElementById("st-delta");
+const stVarEl = document.getElementById("st-var");
+const stPnlEl = document.getElementById("st-pnl");
 
 // Fields the form displays as a percentage (e.g. "10" for 10%) but the API takes as a decimal
 // fraction (0.10) -- see workspace-config/CLAUDE.md for why only these two, not every rate field.
@@ -17,7 +21,8 @@ const num = (n, dp = 2) =>
     maximumFractionDigits: dp,
   });
 
-const signed = (n) => `<span class="${n < 0 ? "neg" : "pos"}">${num(n)}</span>`;
+const signClass = (n) => (n < 0 ? "neg" : "pos");
+const signed = (n) => `<span class="${signClass(n)}">${num(n)}</span>`;
 
 function block(title, sub, body) {
   const subHtml = sub ? `<span class="sub">${sub}</span>` : "";
@@ -31,23 +36,42 @@ function rows(pairs) {
   return `<table class="risk"><tbody>${body}</tbody></table>`;
 }
 
+function renderStats(r) {
+  stValuationEl.textContent = num(r.valuation);
+  stValuationEl.className = `v ${signClass(r.valuation)}`;
+
+  const delta = r.greeks.delta;
+  stDeltaEl.textContent = num(delta);
+  stDeltaEl.className = `v ${signClass(delta)} ${delta >= 0 ? "up" : "down"}`;
+
+  const worstVar = Math.max(
+    r.var.parametric.valueAtRisk,
+    r.var.historical.valueAtRisk,
+  );
+  stVarEl.textContent = num(worstVar);
+  stVarEl.className = "v neg";
+
+  if (r.pnl) {
+    const pnl = r.pnl.actual;
+    stPnlEl.textContent = num(pnl);
+    stPnlEl.className = `v ${signClass(pnl)} ${pnl >= 0 ? "up" : "down"}`;
+  } else {
+    stPnlEl.textContent = "—";
+    stPnlEl.className = "v";
+  }
+}
+
 function render(r) {
   const g = r.greeks;
-  const valuation = block(
-    "Valuation",
-    null,
-    `<div class="valuation">${num(r.valuation)}</div>`,
-  );
-
   const greeks = block(
     "Greeks",
     null,
     rows([
-      ["delta", num(g.delta)],
-      ["gamma", num(g.gamma)],
-      ["vega", num(g.vega)],
-      ["theta", num(g.theta)],
-      ["rho", num(g.rho)],
+      ["delta", signed(g.delta)],
+      ["gamma", signed(g.gamma)],
+      ["vega", signed(g.vega)],
+      ["theta", signed(g.theta)],
+      ["rho", signed(g.rho)],
     ]),
   );
 
@@ -65,7 +89,7 @@ function render(r) {
      </table>`,
   );
 
-  const blocks = [valuation, greeks, varBlock];
+  const blocks = [greeks, varBlock];
   if (r.pnl) {
     const p = r.pnl;
     blocks.push(
@@ -85,6 +109,7 @@ function render(r) {
     );
   }
   reportEl.innerHTML = blocks.join("");
+  renderStats(r);
 }
 
 function touchStatus() {
@@ -117,14 +142,23 @@ async function load(method, body) {
   }
 }
 
-form.addEventListener("submit", (e) => {
-  e.preventDefault();
+function submitForm() {
   const data = new FormData(form);
   for (const field of PERCENT_FIELDS) {
     const raw = data.get(field);
     if (raw !== null && raw !== "") data.set(field, String(Number(raw) / 100));
   }
   load("POST", new URLSearchParams(data).toString());
+}
+
+form.addEventListener("submit", (e) => {
+  e.preventDefault();
+  submitForm();
 });
+
+// Recompute as soon as a field is committed (blur, Enter, or a select change) -- a trader
+// shouldn't have to reach for a button after every edit. The button stays for an explicit
+// re-run and for input methods where "change" doesn't fire predictably.
+form.addEventListener("change", submitForm);
 
 load("GET");
