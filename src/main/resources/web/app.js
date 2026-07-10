@@ -5,12 +5,13 @@ const ageEl = document.getElementById("age");
 const reqsEl = document.getElementById("reqs");
 const stValuationEl = document.getElementById("st-valuation");
 const stDeltaEl = document.getElementById("st-delta");
+const stVarKEl = document.getElementById("st-var-k");
 const stVarEl = document.getElementById("st-var");
 const stPnlEl = document.getElementById("st-pnl");
 
 // Fields the form displays as a percentage (e.g. "10" for 10%) but the API takes as a decimal
-// fraction (0.10) -- see workspace-config/CLAUDE.md for why only these two, not every rate field.
-const PERCENT_FIELDS = ["riskFreeRate", "dividendYield"];
+// fraction (0.10) -- see workspace-config/CLAUDE.md for the percentage-vs-decimal rule.
+const PERCENT_FIELDS = ["riskFreeRate", "dividendYield", "confidence"];
 
 let requestCount = 0;
 let lastRecomputeAt = 0;
@@ -36,7 +37,7 @@ function rows(pairs) {
   return `<table class="risk"><tbody>${body}</tbody></table>`;
 }
 
-function renderStats(r) {
+function renderStats(r, pct) {
   stValuationEl.textContent = num(r.valuation);
   stValuationEl.className = `v ${signClass(r.valuation)}`;
 
@@ -48,6 +49,7 @@ function renderStats(r) {
     r.var.parametric.valueAtRisk,
     r.var.historical.valueAtRisk,
   );
+  stVarKEl.textContent = `VaR ${pct}%`;
   stVarEl.textContent = num(worstVar);
   stVarEl.className = "v neg";
 
@@ -109,7 +111,7 @@ function render(r) {
     );
   }
   reportEl.innerHTML = blocks.join("");
-  renderStats(r);
+  renderStats(r, pct);
 }
 
 function touchStatus() {
