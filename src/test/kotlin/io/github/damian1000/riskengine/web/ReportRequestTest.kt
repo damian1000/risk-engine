@@ -65,4 +65,30 @@ class ReportRequestTest {
         assertThrows(IllegalArgumentException::class.java) { ReportRequest.parse(mapOf("confidence" to "high"), sample) }
         assertThrows(IllegalArgumentException::class.java) { ReportRequest.parse(mapOf("strike" to "cheap"), sample) }
     }
+
+    @Test
+    fun `a non-finite number is rejected, not priced to NaN`() {
+        // "NaN" and "Infinity" parse as Doubles, so MarketData's finiteness gate is what stops them.
+        assertThrows(IllegalArgumentException::class.java) { ReportRequest.parse(mapOf("riskFreeRate" to "NaN"), sample) }
+        assertThrows(IllegalArgumentException::class.java) { ReportRequest.parse(mapOf("timeToExpiry" to "Infinity"), sample) }
+        assertThrows(IllegalArgumentException::class.java) { ReportRequest.parse(mapOf("volatility" to "Infinity"), sample) }
+    }
+
+    @Test
+    fun `a blank field falls back to its default like an absent one`() {
+        val blanks =
+            mapOf(
+                "spot" to "",
+                "volatility" to " ",
+                "confidence" to "",
+                "strike" to "",
+                "optionType" to "",
+                "priorSpot" to "",
+            )
+        val inputs = ReportRequest.parse(blanks, sample)
+        assertEquals(sample.portfolio, inputs.portfolio)
+        assertEquals(sample.market, inputs.market)
+        assertEquals(sample.priorMarket, inputs.priorMarket)
+        assertEquals(sample.confidence, inputs.confidence)
+    }
 }

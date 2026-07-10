@@ -7,12 +7,14 @@ class MarketDataTest {
     private fun marketData(
         spot: String = "42",
         volatility: Double = 0.2,
+        riskFreeRate: Double = 0.05,
+        dividendYield: Double = 0.0,
         timeToExpiry: Double = 0.5,
     ) = MarketData(
         spot = Money.of(spot),
         volatility = volatility,
-        riskFreeRate = 0.05,
-        dividendYield = 0.0,
+        riskFreeRate = riskFreeRate,
+        dividendYield = dividendYield,
         timeToExpiry = timeToExpiry,
     )
 
@@ -33,5 +35,18 @@ class MarketDataTest {
     fun rejectsNonPositiveTimeToExpiry() {
         assertThrows(IllegalArgumentException::class.java) { marketData(timeToExpiry = 0.0) }
         assertThrows(IllegalArgumentException::class.java) { marketData(timeToExpiry = -0.5) }
+    }
+
+    @Test
+    fun rejectsNonFiniteInputs() {
+        // An infinity or NaN would price to NaN, which the report's JSON cannot even represent.
+        assertThrows(IllegalArgumentException::class.java) { marketData(volatility = Double.POSITIVE_INFINITY) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(volatility = Double.NaN) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(riskFreeRate = Double.NaN) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(riskFreeRate = Double.NEGATIVE_INFINITY) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(dividendYield = Double.NaN) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(dividendYield = Double.POSITIVE_INFINITY) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(timeToExpiry = Double.POSITIVE_INFINITY) }
+        assertThrows(IllegalArgumentException::class.java) { marketData(timeToExpiry = Double.NaN) }
     }
 }

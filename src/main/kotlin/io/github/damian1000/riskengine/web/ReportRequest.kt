@@ -18,8 +18,9 @@ data class ReportInputs(
 
 /**
  * Turns request parameters into [ReportInputs], each field falling back to the [SampleBook]'s
- * value when absent so a partial request still resolves. Every parse or domain failure surfaces as
- * an [IllegalArgumentException] the web layer maps to a 400 — a zero position is dropped rather
+ * value when absent or blank (a cleared form field submits `name=` — that is absence, not input)
+ * so a partial request still resolves. Every parse or domain failure surfaces as an
+ * [IllegalArgumentException] the web layer maps to a 400 — a zero position is dropped rather
  * than rejected (a flat leg is a valid book, not an error).
  */
 object ReportRequest {
@@ -37,7 +38,7 @@ object ReportRequest {
         val equityQty = double(params, "equityQty", defaultEquityQty)
         val optionQty = double(params, "optionQty", defaultOptionPos?.quantity ?: 0.0)
         val strike = money(params, "strike", defaultOption?.strike ?: Money.of("40"))
-        val optionType = optionType(params["optionType"], defaultOption?.type ?: OptionType.CALL)
+        val optionType = optionType(given(params, "optionType"), defaultOption?.type ?: OptionType.CALL)
 
         val positions =
             buildList {
@@ -58,19 +59,25 @@ object ReportRequest {
         // time runs forward to the current mark (PnlExplainer requires it). Absent, the sample's
         // own prior stands in, so an unparameterised request still shows the full report.
         val priorMarket =
-            params["priorSpot"]?.let { raw ->
+            given(params, "priorSpot")?.let { raw ->
                 market.copy(spot = parseMoney("priorSpot", raw), timeToExpiry = market.timeToExpiry + 1.0 / 365)
             } ?: defaults.priorMarket
 
         return ReportInputs(Portfolio(positions), market, priorMarket, double(params, "confidence", defaults.confidence))
     }
 
+    /** The parameter's value, or null when it is absent or blank — both mean "use the default". */
+    private fun given(
+        params: Map<String, String>,
+        name: String,
+    ): String? = params[name]?.takeUnless { it.isBlank() }
+
     private fun double(
         params: Map<String, String>,
         name: String,
         fallback: Double,
     ): Double {
-        val raw = params[name] ?: return fallback
+        val raw = given(params, name) ?: return fallback
         return raw.toDoubleOrNull() ?: throw IllegalArgumentException("$name is not a number: '$raw'")
     }
 
@@ -78,7 +85,7 @@ object ReportRequest {
         params: Map<String, String>,
         name: String,
         fallback: Money,
-    ): Money = params[name]?.let { parseMoney(name, it) } ?: fallback
+    ): Money = given(params, name)?.let { parseMoney(name, it) } ?: fallback
 
     private fun parseMoney(
         name: String,

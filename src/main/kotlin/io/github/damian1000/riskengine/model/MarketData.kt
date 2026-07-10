@@ -13,8 +13,12 @@ data class MarketData(
     val timeToExpiry: Double,
 ) {
     init {
+        // Finite-only: an infinity or NaN input prices to NaN, which poisons every downstream
+        // number and is not even representable in the report's JSON.
         require(spot.amount.signum() > 0) { "spot must be positive, got $spot" }
-        require(volatility > 0) { "volatility must be positive, got $volatility" }
-        require(timeToExpiry > 0) { "timeToExpiry must be positive, got $timeToExpiry" }
+        require(volatility.isFinite() && volatility > 0) { "volatility must be positive and finite, got $volatility" }
+        require(riskFreeRate.isFinite()) { "riskFreeRate must be finite, got $riskFreeRate" }
+        require(dividendYield.isFinite()) { "dividendYield must be finite, got $dividendYield" }
+        require(timeToExpiry.isFinite() && timeToExpiry > 0) { "timeToExpiry must be positive and finite, got $timeToExpiry" }
     }
 }
