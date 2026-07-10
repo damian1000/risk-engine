@@ -1,0 +1,84 @@
+// The runnable live risk view: a dependency-free JDK-HttpServer wrapper over :core's
+// RiskReportAssembler. This is the module the deploy pipeline ships (installDist).
+plugins {
+    id 'application'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'jacoco'
+}
+
+group = 'io.github.damian1000'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+}
+
+kotlin {
+    jvmToolchain(25)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+    }
+}
+
+application {
+    applicationName = 'risk-engine'
+    mainClass = 'io.github.damian1000.riskengine.web.RiskWebServerKt'
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation project(':core')
+
+    testImplementation platform("org.junit:junit-bom:6.1.1")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.hamcrest:hamcrest:3.0'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+// Only the process entry point (RiskWebServerKt — main() binds the real port and blocks) is
+// excluded, like a CLI MainKt. The rest of the web layer — routing, request parsing, JSON — is
+// exercised against a loopback HttpServer and counted.
+def coverageExclusions = ['**/web/RiskWebServerKt.class']
+
+jacocoTestReport {
+    dependsOn test
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, excludes: coverageExclusions)
+        }))
+    }
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    afterEvaluate {
+        classDirectories.setFrom(files(classDirectories.files.collect {
+            fileTree(dir: it, excludes: coverageExclusions)
+        }))
+    }
+    violationRules {
+        rule {
+            limit {
+                counter = 'INSTRUCTION'
+                value = 'COVEREDRATIO'
+                minimum = 0.90
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification

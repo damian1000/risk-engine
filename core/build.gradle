@@ -1,0 +1,83 @@
+// The pure risk library: model, pricing, risk, report. No web, no entry point - this is the
+// module published for consumers (JitPack builds it from a tag).
+plugins {
+    id 'java-library'
+    id 'org.jetbrains.kotlin.jvm'
+    id 'jacoco'
+    id 'maven-publish'
+}
+
+group = 'io.github.damian1000'
+version = '1.0.0'
+
+java {
+    toolchain {
+        languageVersion = JavaLanguageVersion.of(25)
+    }
+    withSourcesJar() // so a consumer's IDE can navigate the source
+}
+
+kotlin {
+    jvmToolchain(25)
+    compilerOptions {
+        jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_25)
+    }
+}
+
+repositories {
+    mavenCentral()
+}
+
+dependencies {
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
+
+    testImplementation platform("org.junit:junit-bom:6.1.1")
+    testImplementation 'org.junit.jupiter:junit-jupiter'
+    testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
+    testImplementation 'org.hamcrest:hamcrest:3.0'
+    // Property-based testing: a JUnit 5 platform engine, runs alongside ordinary Jupiter tests
+    // in the same source set via the existing useJUnitPlatform() -- no separate config needed.
+    testImplementation 'net.jqwik:jqwik:1.10.1'
+    // Independent implementation the cross-validation tests price against. Test scope only:
+    // the pricing in main stays hand-written, Strata never leaks into the library's API.
+    testImplementation 'com.opengamma.strata:strata-pricer:2.12.73'
+}
+
+test {
+    useJUnitPlatform()
+    finalizedBy jacocoTestReport
+}
+
+jacocoTestReport {
+    dependsOn test
+    reports {
+        xml.required = true
+        html.required = true
+    }
+}
+
+// The library carries no entry point, so nothing is excluded: every class meets the gate.
+jacocoTestCoverageVerification {
+    dependsOn jacocoTestReport
+    violationRules {
+        rule {
+            limit {
+                counter = 'INSTRUCTION'
+                value = 'COVEREDRATIO'
+                minimum = 0.90
+            }
+        }
+    }
+}
+
+check.dependsOn jacocoTestCoverageVerification
+
+// No remote repository: JitPack builds from the git tag, so publishing exists only for
+// publishToMavenLocal (local verification and a consumer dry run).
+publishing {
+    publications {
+        maven(MavenPublication) {
+            from components.java
+        }
+    }
+}
