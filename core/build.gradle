@@ -78,6 +78,9 @@ publishing {
     publications {
         maven(MavenPublication) {
             from components.java
+            // Not the bare project name 'core': both this repo and orderbook publish a :core,
+            // and the artifactId is what keeps them distinct in a local repository.
+            artifactId = 'risk-engine-core'
         }
     }
 }
