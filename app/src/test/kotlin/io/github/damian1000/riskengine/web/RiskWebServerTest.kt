@@ -53,6 +53,14 @@ class RiskWebServerTest {
     }
 
     @Test
+    fun `serves the privacy notice`() {
+        val response = send("GET", "/privacy")
+        assertEquals(200, response.statusCode())
+        assertEquals("text/html; charset=utf-8", response.headers().firstValue("Content-Type").get())
+        assertTrue(response.body().contains("Privacy"))
+    }
+
+    @Test
     fun `GET report returns the sample book's report including the PnL block`() {
         val response = send("GET", "/api/report")
         assertEquals(200, response.statusCode())
