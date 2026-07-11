@@ -38,6 +38,16 @@ dependencies {
     testImplementation 'org.junit.jupiter:junit-jupiter'
     testRuntimeOnly 'org.junit.platform:junit-platform-launcher'
     testImplementation 'org.hamcrest:hamcrest:3.0'
+    testImplementation 'com.microsoft.playwright:playwright:1.61.0'
+}
+
+// Downloads the Chromium build RiskViewBrowserTest drives (a no-op when already present).
+// CI runs this before `check` behind an actions/cache keyed on the Playwright version; locally
+// Playwright would download on first launch anyway, this just makes the step explicit.
+tasks.register('installPlaywrightChromium', JavaExec) {
+    classpath = configurations.testRuntimeClasspath
+    mainClass = 'com.microsoft.playwright.CLI'
+    args 'install', '--with-deps', 'chromium'
 }
 
 test {
