@@ -1,3 +1,9 @@
+// Embedded as a trading-desk tab (?embed=1): the desk supplies the outer chrome, so hide this
+// app's own topbar/status bar (see app.css .embedded). Standalone, the class is never added.
+if (new URLSearchParams(location.search).has("embed")) {
+  document.body.classList.add("embedded");
+}
+
 const form = document.getElementById("book");
 const reportEl = document.getElementById("report");
 const errorEl = document.getElementById("error");
@@ -131,7 +137,7 @@ async function load(method, body) {
   errorEl.hidden = true;
   try {
     const res = await fetch(
-      "/api/report",
+      "api/report",
       method === "POST" ? { method, body } : {},
     );
     const json = await res.json();
