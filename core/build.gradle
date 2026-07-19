@@ -16,7 +16,7 @@ java {
 dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk8"
 
-    testImplementation 'org.hamcrest:hamcrest:3.0'
+    testImplementation deps.hamcrest
     // Property-based testing: a JUnit 5 platform engine, runs alongside ordinary Jupiter tests
     // in the same source set via the existing useJUnitPlatform() -- no separate config needed.
     testImplementation 'net.jqwik:jqwik:1.10.1'
