@@ -84,10 +84,12 @@ class RiskWebServer(
 
     // Reprice is side-effect-free, so GET (the sample) and POST (a described book) are both
     // allowed — and both are rate-limited, because the cost is the reprice, not the write.
+    // HEAD follows the GET path (and pays the same rate-limit token: the cost it probes is the
+    // reprice); respond() suppresses its body.
     private fun report(exchange: HttpExchange) {
         val method = exchange.requestMethod
-        if (method != "GET" && method != "POST") {
-            exchange.responseHeaders.add("Allow", "GET, POST")
+        if (method != "GET" && method != "HEAD" && method != "POST") {
+            exchange.responseHeaders.add("Allow", "GET, HEAD, POST")
             return respond(exchange, 405, "text/plain", "method not allowed")
         }
         val key = ClientIp.of(exchange.remoteAddress.address, exchange.requestHeaders.getFirst("X-Forwarded-For"))
@@ -98,7 +100,7 @@ class RiskWebServer(
         }
         val params =
             when (method) {
-                "GET" -> params(exchange.requestURI.rawQuery)
+                "GET", "HEAD" -> params(exchange.requestURI.rawQuery)
                 else -> {
                     // A report request is ~ten short URL-encoded numeric fields — well under a
                     // kilobyte — so the cap refuses junk before it is buffered, and readNBytes
@@ -115,14 +117,16 @@ class RiskWebServer(
         respond(exchange, 200, "application/json", report.toJson())
     }
 
+    // HEAD rides every GET route: the handler runs identically and respond() suppresses the body,
+    // so the status and headers a HEAD probe sees are the ones the GET would have produced.
     private inline fun get(
         exchange: HttpExchange,
         handler: () -> Unit,
     ) {
-        if (exchange.requestMethod == "GET") {
+        if (exchange.requestMethod == "GET" || exchange.requestMethod == "HEAD") {
             handler()
         } else {
-            exchange.responseHeaders.add("Allow", "GET")
+            exchange.responseHeaders.add("Allow", "GET, HEAD")
             respond(exchange, 405, "text/plain", "method not allowed")
         }
     }
@@ -143,8 +147,15 @@ class RiskWebServer(
     ) {
         val bytes = body.toByteArray(StandardCharsets.UTF_8)
         exchange.responseHeaders.add("Content-Type", contentType)
-        exchange.sendResponseHeaders(status, bytes.size.toLong())
-        exchange.responseBody.use { it.write(bytes) }
+        if (exchange.requestMethod == "HEAD") {
+            // Headers only: -1 tells the JDK server no body follows, which is the one length it
+            // accepts on a HEAD without logging a warning (it drops Content-Length either way).
+            exchange.sendResponseHeaders(status, -1)
+            exchange.close()
+        } else {
+            exchange.sendResponseHeaders(status, bytes.size.toLong())
+            exchange.responseBody.use { it.write(bytes) }
+        }
     }
 }
 
