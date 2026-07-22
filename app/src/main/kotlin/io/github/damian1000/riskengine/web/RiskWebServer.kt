@@ -7,7 +7,9 @@ import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
 import java.util.concurrent.ExecutorService
-import java.util.concurrent.Executors
+import java.util.concurrent.SynchronousQueue
+import java.util.concurrent.ThreadPoolExecutor
+import java.util.concurrent.TimeUnit
 
 /**
  * HTTP transport for the risk report: serves the static UI and the report as JSON. Plumbing only —
@@ -15,14 +17,19 @@ import java.util.concurrent.Executors
  * front end is a thin renderer of [io.github.damian1000.riskengine.report.RiskReport.toJson].
  *
  * `/api/report` accepts GET (the sample book) or POST (a book/market described in the request), both
- * side-effect-free reprices; invalid input maps to a 400 with a JSON `error` body. JDK [HttpServer]
- * on a cached pool, no web framework.
+ * side-effect-free reprices. Both verbs are rate-limited per client ([reportLimiter], keyed by
+ * [ClientIp]) because each request is a full reprice. Invalid input maps to a 400 with a JSON
+ * `error` body; a client past its rate maps to a 429 with `Retry-After`; a POST body past
+ * [MAX_BODY_BYTES] maps to a 413; anything unexpected maps to a 500. JDK [HttpServer] on a request
+ * pool capped at [maxPoolThreads], no web framework.
  */
 class RiskWebServer(
     private val sample: SampleBook,
     private val assembler: RiskReportAssembler,
     private val assets: RiskWebAssets,
     private val port: Int,
+    private val reportLimiter: TokenBucketRateLimiter = TokenBucketRateLimiter(capacity = 20, refillPerSecond = 5.0),
+    private val maxPoolThreads: Int = 32,
 ) {
     private lateinit var server: HttpServer
     private lateinit var executor: ExecutorService
@@ -30,7 +37,14 @@ class RiskWebServer(
     /** Binds and starts serving; requesting port 0 binds an ephemeral port (see [boundPort]). */
     fun start() {
         server = HttpServer.create(InetSocketAddress(port), 0)
-        executor = Executors.newCachedThreadPool { Thread(it).apply { isDaemon = true } }
+        // Cached-pool reuse and keep-alive but with a hard thread ceiling: every report request is
+        // a full reprice, so threads past the ceiling add memory and scheduling pressure on a small
+        // host, not throughput. No work queue — saturation refuses the new connection instead of
+        // queuing it behind compute-bound work.
+        executor =
+            ThreadPoolExecutor(0, maxPoolThreads, 60L, TimeUnit.SECONDS, SynchronousQueue()) {
+                Thread(it).apply { isDaemon = true }
+            }
         server.executor = executor
         server.createContext("/", ::route)
         server.start()
@@ -59,18 +73,41 @@ class RiskWebServer(
             }
         } catch (e: IllegalArgumentException) {
             respond(exchange, 400, "application/json", """{"error":${jsonString(e.message ?: "bad request")}}""")
+        } catch (e: Exception) {
+            // Anything unexpected must still answer the request — without this the connection
+            // just closes with no status line. The stack goes to stderr -> journalctl; the
+            // response stays generic.
+            e.printStackTrace()
+            runCatching { respond(exchange, 500, "application/json", """{"error":"internal error"}""") }
         }
     }
 
-    // Reprice is side-effect-free, so GET (the sample) and POST (a described book) are both allowed.
+    // Reprice is side-effect-free, so GET (the sample) and POST (a described book) are both
+    // allowed — and both are rate-limited, because the cost is the reprice, not the write.
     private fun report(exchange: HttpExchange) {
+        val method = exchange.requestMethod
+        if (method != "GET" && method != "POST") {
+            exchange.responseHeaders.add("Allow", "GET, POST")
+            return respond(exchange, 405, "text/plain", "method not allowed")
+        }
+        val key = ClientIp.of(exchange.remoteAddress.address, exchange.requestHeaders.getFirst("X-Forwarded-For"))
+        val decision = reportLimiter.tryAcquire(key)
+        if (!decision.allowed) {
+            exchange.responseHeaders.add("Retry-After", decision.retryAfterSeconds.toString())
+            return respond(exchange, 429, "application/json", """{"error":"rate limit exceeded"}""")
+        }
         val params =
-            when (exchange.requestMethod) {
+            when (method) {
                 "GET" -> params(exchange.requestURI.rawQuery)
-                "POST" -> params(exchange.requestBody.use { it.readBytes().toString(StandardCharsets.UTF_8) })
                 else -> {
-                    exchange.responseHeaders.add("Allow", "GET, POST")
-                    return respond(exchange, 405, "text/plain", "method not allowed")
+                    // A report request is ~ten short URL-encoded numeric fields — well under a
+                    // kilobyte — so the cap refuses junk before it is buffered, and readNBytes
+                    // never allocates past it.
+                    val body = exchange.requestBody.use { it.readNBytes(MAX_BODY_BYTES + 1) }
+                    if (body.size > MAX_BODY_BYTES) {
+                        return respond(exchange, 413, "application/json", """{"error":"request body too large"}""")
+                    }
+                    params(body.toString(StandardCharsets.UTF_8))
                 }
             }
         val inputs = ReportRequest.parse(params, sample)
@@ -110,6 +147,9 @@ class RiskWebServer(
         exchange.responseBody.use { it.write(bytes) }
     }
 }
+
+/** Upper bound on a report POST body; see the read in [RiskWebServer.report]. */
+private const val MAX_BODY_BYTES = 16 * 1024
 
 fun main() {
     val port = (System.getenv("PORT") ?: "8081").toInt()

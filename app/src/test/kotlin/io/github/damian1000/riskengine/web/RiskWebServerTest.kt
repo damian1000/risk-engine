@@ -1,6 +1,14 @@
 package io.github.damian1000.riskengine.web
 
+import io.github.damian1000.riskengine.model.MarketData
+import io.github.damian1000.riskengine.model.Portfolio
+import io.github.damian1000.riskengine.pricing.BlackScholesPricer
 import io.github.damian1000.riskengine.report.RiskReportAssembler
+import io.github.damian1000.riskengine.risk.BumpAndRepriceGreeksCalculator
+import io.github.damian1000.riskengine.risk.PnlExplainer
+import io.github.damian1000.riskengine.risk.PortfolioRiskAggregator
+import io.github.damian1000.riskengine.risk.RiskMeasures
+import io.github.damian1000.riskengine.risk.VarCalculator
 import org.junit.jupiter.api.AfterEach
 import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertTrue
@@ -112,5 +120,84 @@ class RiskWebServerTest {
     @Test
     fun `static routes reject non-GET methods`() {
         assertEquals(405, send("POST", "/healthz", "x=1").statusCode())
+    }
+
+    @Test
+    fun `a POST body past the cap is a 413, not an unbounded buffer`() {
+        val oversized = "spot=" + "9".repeat(17 * 1024)
+        val response = send("POST", "/api/report", oversized)
+        assertEquals(413, response.statusCode())
+        assertTrue(response.body().contains("\"error\""))
+        assertEquals(200, send("POST", "/api/report", "spot=50").statusCode(), "a normal body still reprices")
+    }
+
+    @Test
+    fun `report requests past the per-client rate are a 429 with Retry-After on either verb`() {
+        val limited =
+            RiskWebServer(
+                SampleBook.default(),
+                RiskReportAssembler.standard(),
+                RiskWebAssets.load(),
+                port = 0,
+                reportLimiter = TokenBucketRateLimiter(capacity = 2, refillPerSecond = 0.1),
+            )
+        limited.start()
+        try {
+            fun report(method: String) =
+                client.send(
+                    HttpRequest
+                        .newBuilder(URI("http://localhost:${limited.boundPort}/api/report"))
+                        .method(method, HttpRequest.BodyPublishers.noBody())
+                        .build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+            assertEquals(200, report("GET").statusCode())
+            assertEquals(200, report("POST").statusCode(), "both verbs drain the same bucket — the cost is the reprice")
+            val denied = report("GET")
+            assertEquals(429, denied.statusCode())
+            assertTrue(denied.headers().firstValue("Retry-After").isPresent, "a denial must say when to come back")
+            assertTrue(denied.body().contains("\"error\""))
+            val health =
+                client.send(
+                    HttpRequest.newBuilder(URI("http://localhost:${limited.boundPort}/healthz")).build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+            assertEquals(200, health.statusCode(), "only the report path is limited")
+        } finally {
+            limited.stop()
+        }
+    }
+
+    @Test
+    fun `an unexpected failure maps to a 500, not a dropped connection`() {
+        val throwingVar =
+            object : VarCalculator {
+                override fun measure(
+                    portfolio: Portfolio,
+                    market: MarketData,
+                    spotReturns: List<Double>,
+                    confidence: Double,
+                ): RiskMeasures = throw IllegalStateException("boom")
+            }
+        val aggregator = PortfolioRiskAggregator(BlackScholesPricer(), BumpAndRepriceGreeksCalculator())
+        val failing =
+            RiskWebServer(
+                SampleBook.default(),
+                RiskReportAssembler(aggregator, throwingVar, throwingVar, PnlExplainer(aggregator)),
+                RiskWebAssets.load(),
+                port = 0,
+            )
+        failing.start()
+        try {
+            val response =
+                client.send(
+                    HttpRequest.newBuilder(URI("http://localhost:${failing.boundPort}/api/report")).build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+            assertEquals(500, response.statusCode())
+            assertTrue(response.body().contains("internal error"))
+        } finally {
+            failing.stop()
+        }
     }
 }
