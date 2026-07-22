@@ -69,6 +69,16 @@ class RiskWebServerTest {
     }
 
     @Test
+    fun `HEAD answers every GET route with the GET's status and headers, minus the body`() {
+        for (path in listOf("/", "/healthz", "/privacy", "/app.css", "/app.js", "/api/report")) {
+            val head = send("HEAD", path)
+            assertEquals(send("GET", path).statusCode(), head.statusCode(), path)
+            assertEquals("", head.body(), path)
+        }
+        assertEquals("text/html; charset=utf-8", send("HEAD", "/").headers().firstValue("Content-Type").get())
+    }
+
+    @Test
     fun `GET report returns the sample book's report including the PnL block`() {
         val response = send("GET", "/api/report")
         assertEquals(200, response.statusCode())
@@ -111,10 +121,10 @@ class RiskWebServerTest {
     }
 
     @Test
-    fun `report rejects methods other than GET or POST`() {
+    fun `report rejects methods other than GET, HEAD, or POST`() {
         val response = send("DELETE", "/api/report")
         assertEquals(405, response.statusCode())
-        assertEquals("GET, POST", response.headers().firstValue("Allow").get())
+        assertEquals("GET, HEAD, POST", response.headers().firstValue("Allow").get())
     }
 
     @Test
