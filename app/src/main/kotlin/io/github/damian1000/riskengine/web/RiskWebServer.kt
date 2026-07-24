@@ -16,6 +16,11 @@ import java.util.concurrent.TimeUnit
  * every number comes from the [RiskReportAssembler] over the library's tested calculators, and the
  * front end is a thin renderer of [io.github.damian1000.riskengine.report.RiskReport.toJson].
  *
+ * `/healthz` proves the web process answers; `/readyz` reprices the sample book end to end through
+ * the real calculators, so a deploy whose pricing path throws reads as not-ready (503) rather than
+ * serving 500s on the first request — the engine has no external dependency to probe, so exercising
+ * its own compute is the readiness signal that means something.
+ *
  * `/api/report` accepts GET (the sample book) or POST (a book/market described in the request), both
  * side-effect-free reprices. Both verbs are rate-limited per client ([reportLimiter], keyed by
  * [ClientIp]) because each request is a full reprice. Invalid input maps to a 400 with a JSON
@@ -64,6 +69,7 @@ class RiskWebServer(
         try {
             when (exchange.requestURI.path) {
                 "/healthz" -> get(exchange) { respond(exchange, 200, "text/plain", "ok") }
+                "/readyz" -> get(exchange) { ready(exchange) }
                 "/" -> get(exchange) { respond(exchange, 200, "text/html; charset=utf-8", assets.indexHtml) }
                 "/app.css" -> get(exchange) { respond(exchange, 200, "text/css; charset=utf-8", assets.appCss) }
                 "/app.js" -> get(exchange) { respond(exchange, 200, "text/javascript; charset=utf-8", assets.appJs) }
@@ -112,9 +118,19 @@ class RiskWebServer(
                     params(body.toString(StandardCharsets.UTF_8))
                 }
             }
-        val inputs = ReportRequest.parse(params, sample)
-        val report = assembler.assemble(inputs.portfolio, inputs.market, sample.scenarioReturns, inputs.confidence, inputs.priorMarket)
+        val report = assemble(ReportRequest.parse(params, sample))
         respond(exchange, 200, "application/json", report.toJson())
+    }
+
+    private fun assemble(inputs: ReportInputs) =
+        assembler.assemble(inputs.portfolio, inputs.market, sample.scenarioReturns, inputs.confidence, inputs.priorMarket)
+
+    // Liveness says the process answers; this reprices the sample book through the real calculators,
+    // so a deploy whose pricing path throws is not-ready rather than serving 500s. runCatching keeps
+    // the probe from ever dropping the connection — any failure is a 503, never an unhandled throw.
+    private fun ready(exchange: HttpExchange) {
+        val ok = runCatching { assemble(ReportRequest.parse(emptyMap(), sample)) }.isSuccess
+        respond(exchange, if (ok) 200 else 503, "application/json", """{"ready":$ok,"reprice":{"ok":$ok}}""")
     }
 
     // HEAD rides every GET route: the handler runs identically and respond() suppresses the body,
