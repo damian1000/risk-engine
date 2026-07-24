@@ -54,6 +54,13 @@ class RiskWebServerTest {
     }
 
     @Test
+    fun `readyz is 200 when the sample book reprices`() {
+        val response = send("GET", "/readyz")
+        assertEquals(200, response.statusCode())
+        assertTrue(response.body().contains(""""ready":true"""), response.body())
+    }
+
+    @Test
     fun `serves the static front end with content types`() {
         assertTrue(send("GET", "/").body().contains("<html"))
         assertEquals("text/css; charset=utf-8", send("GET", "/app.css").headers().firstValue("Content-Type").get())
@@ -70,7 +77,7 @@ class RiskWebServerTest {
 
     @Test
     fun `HEAD answers every GET route with the GET's status and headers, minus the body`() {
-        for (path in listOf("/", "/healthz", "/privacy", "/app.css", "/app.js", "/api/report")) {
+        for (path in listOf("/", "/healthz", "/readyz", "/privacy", "/app.css", "/app.js", "/api/report")) {
             val head = send("HEAD", path)
             assertEquals(send("GET", path).statusCode(), head.statusCode(), path)
             assertEquals("", head.body(), path)
@@ -206,6 +213,39 @@ class RiskWebServerTest {
                 )
             assertEquals(500, response.statusCode())
             assertTrue(response.body().contains("internal error"))
+        } finally {
+            failing.stop()
+        }
+    }
+
+    @Test
+    fun `readyz is 503 when the sample reprice fails`() {
+        val throwingVar =
+            object : VarCalculator {
+                override fun measure(
+                    portfolio: Portfolio,
+                    market: MarketData,
+                    spotReturns: List<Double>,
+                    confidence: Double,
+                ): RiskMeasures = throw IllegalStateException("boom")
+            }
+        val aggregator = PortfolioRiskAggregator(BlackScholesPricer(), BumpAndRepriceGreeksCalculator())
+        val failing =
+            RiskWebServer(
+                SampleBook.default(),
+                RiskReportAssembler(aggregator, throwingVar, throwingVar, PnlExplainer(aggregator)),
+                RiskWebAssets.load(),
+                port = 0,
+            )
+        failing.start()
+        try {
+            val response =
+                client.send(
+                    HttpRequest.newBuilder(URI("http://localhost:${failing.boundPort}/readyz")).build(),
+                    HttpResponse.BodyHandlers.ofString(),
+                )
+            assertEquals(503, response.statusCode())
+            assertTrue(response.body().contains(""""ready":false"""), response.body())
         } finally {
             failing.stop()
         }
