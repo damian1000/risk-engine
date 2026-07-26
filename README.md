@@ -51,7 +51,7 @@ Four independent layers:
 
 ## Live view
 
-`./gradlew run` starts a dependency-free JDK-`HttpServer` front end: edit the book and market, and the valuation, Greeks, both VaR methods, and the day's PnL attribution recompute server-side and re-render. The page is a thin renderer over `RiskReport.toJson()` — every number is produced by the same calculators the tests validate, `/api/report` serves the report as JSON, and `/healthz` gates deployment.
+`./gradlew run` starts a dependency-free JDK-`HttpServer` front end: edit the book and market, and the valuation, Greeks, both VaR methods, and the day's PnL attribution recompute server-side and re-render. The page is a thin renderer over `RiskReport.toJson()` — every number is produced by the same calculators the tests validate, `/api/report` serves the report as JSON, and `/readyz` gates deployment.
 
 `RiskViewBrowserTest` drives the full render path in a headless Chromium via Playwright — initial render, recompute-on-change, and the error banner — so a renamed JSON key or a broken front-end renderer fails CI instead of breaking the live view silently.
 
