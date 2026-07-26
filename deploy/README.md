@@ -2,8 +2,10 @@
 
 The live risk view runs as a systemd JVM service behind Caddy, alongside the order book on the
 same box. The pipeline (`.github/workflows/deploy.yml`) builds once via `installDist`, ships the
-tested artifact over SSH, keeps the previous release for rollback, syncs the systemd unit only on
-change, restarts, and gates success on a `/healthz` 200.
+tested artifact over SSH against a pinned host key, unpacks it into `~/releases/risk-engine/<commit>`
+and moves `~/risk-engine` onto it with a symlink rename, syncs the systemd unit only on change,
+restarts, and gates success on a `/readyz` 200. A release that does not come up is rolled back to
+its predecessor by the same remote script; three releases are retained.
 
 ## Service
 
@@ -36,7 +38,7 @@ Same box as the order book, so the same three values:
    port is exposed — 8081 stays localhost-only.
 
 3. **First deploy.** Actions → **Deploy** → **Run workflow** (`workflow_dispatch`). It installs and
-   enables the service, and the health check confirms `:8081/healthz`.
+   enables the service, and the health check confirms `:8081/readyz`.
 
 4. **Deploy on merge.** Once the manual run is green, add a push trigger to
    `.github/workflows/deploy.yml` so merges to `main` deploy automatically:
