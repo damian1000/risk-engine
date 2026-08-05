@@ -21,36 +21,16 @@ Same box as the order book, so the same three values:
 - `DEPLOY_HOST` — the box IP
 - `DEPLOY_USER` — the login user (`ubuntu`)
 
-## One-time steps to go live
+## Host setup
 
-1. **DNS (Cloudflare).** Add an A record `risk.damianhoward.com` → `145.241.193.169`, set **DNS
-   only / grey cloud** so Caddy can complete the ACME challenge (proxied/orange breaks it).
-
-2. **Caddy route.** Append to `/etc/caddy/Caddyfile` on the box, then `sudo systemctl reload caddy`:
-
-   ```
-   risk.damianhoward.com {
-       reverse_proxy localhost:8081
-   }
-   ```
-
-   Ports 80/443 are already open (VCN security list + iptables, shared with the order book); no new
-   port is exposed — 8081 stays localhost-only.
-
-3. **First deploy.** Actions → **Deploy** → **Run workflow** (`workflow_dispatch`). It installs and
-   enables the service, and the health check confirms `:8081/readyz`.
-
-4. **Deploy on merge.** Once the manual run is green, add a push trigger to
-   `.github/workflows/deploy.yml` so merges to `main` deploy automatically:
-
-   ```yaml
-   on:
-     push:
-       branches: [main]
-     workflow_dispatch:
-   ```
+A Cloudflare A record for `risk.damianhoward.com` points at the box, **DNS only / grey cloud** —
+proxying it breaks Caddy's ACME challenge. The Caddy route itself needs no manual step: the host's
+configuration is version-controlled and installed by a deploy, validated and backed up first. The
+service adds no publicly reachable port.
 
 ## Rollback
 
-The previous release is kept at `~/risk-engine-prev`; restore its `bin`/`lib` and
-`sudo systemctl restart risk-engine`.
+Automatic, and decided on the box rather than by the runner. A release that does not answer
+`/readyz` has the `~/risk-engine` symlink moved back onto the previous release directory and the
+service restarted, so a runner that dies mid-deploy cannot leave a broken release serving. Three
+releases are retained, which is what makes the previous one still there to point at.
