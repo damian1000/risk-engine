@@ -33,20 +33,4 @@ test.dependsOn installPlaywrightChromium
 // Only the process entry point (RiskWebServerKt — main() binds the real port and blocks) is
 // excluded, like a CLI MainKt. The rest of the web layer — routing, request parsing, JSON — is
 // exercised against a loopback HttpServer and counted.
-def coverageExclusions = ['**/web/RiskWebServerKt.class']
-
-jacocoTestReport {
-    afterEvaluate {
-        classDirectories.setFrom(files(classDirectories.files.collect {
-            fileTree(dir: it, excludes: coverageExclusions)
-        }))
-    }
-}
-
-jacocoTestCoverageVerification {
-    afterEvaluate {
-        classDirectories.setFrom(files(classDirectories.files.collect {
-            fileTree(dir: it, excludes: coverageExclusions)
-        }))
-    }
-}
+coverageExcludes = ['**/web/RiskWebServerKt.class']
