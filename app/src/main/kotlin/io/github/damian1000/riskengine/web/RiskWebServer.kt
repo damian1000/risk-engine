@@ -3,6 +3,7 @@ package io.github.damian1000.riskengine.web
 import com.sun.net.httpserver.HttpExchange
 import com.sun.net.httpserver.HttpServer
 import io.github.damian1000.riskengine.report.RiskReportAssembler
+import java.net.InetAddress
 import java.net.InetSocketAddress
 import java.net.URLDecoder
 import java.nio.charset.StandardCharsets
@@ -35,13 +36,21 @@ class RiskWebServer(
     private val port: Int,
     private val reportLimiter: TokenBucketRateLimiter = TokenBucketRateLimiter(capacity = 20, refillPerSecond = 5.0),
     private val maxPoolThreads: Int = 32,
+    /**
+     * Loopback by default: this server is meant to be reached through the reverse proxy that
+     * terminates TLS, applies the security headers and writes the access log, never directly.
+     * Binding every interface — which `InetSocketAddress(port)` alone does — makes that
+     * guarantee depend on a firewall rule being right somewhere else. Appended last so existing
+     * positional call sites are unaffected.
+     */
+    private val bindAddress: InetAddress = InetAddress.getLoopbackAddress(),
 ) {
     private lateinit var server: HttpServer
     private lateinit var executor: ExecutorService
 
     /** Binds and starts serving; requesting port 0 binds an ephemeral port (see [boundPort]). */
     fun start() {
-        server = HttpServer.create(InetSocketAddress(port), 0)
+        server = HttpServer.create(InetSocketAddress(bindAddress, port), 0)
         // Cached-pool reuse and keep-alive but with a hard thread ceiling: every report request is
         // a full reprice, so threads past the ceiling add memory and scheduling pressure on a small
         // host, not throughput. No work queue — saturation refuses the new connection instead of
