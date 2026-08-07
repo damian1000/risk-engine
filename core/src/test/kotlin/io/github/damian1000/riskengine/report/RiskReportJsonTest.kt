@@ -35,8 +35,13 @@ class RiskReportJsonTest {
             """{"valuation":3724.06,"greeks":{"delta":22.09,"gamma":-4.99,"vega":-881.35,"theta":456.22,"rho":-1398.2},""" +
                 """"confidence":0.99,"var":{"parametric":{"valueAtRisk":39.57,"expectedShortfall":45.33},""" +
                 """"historical":{"valueAtRisk":32.05,"expectedShortfall":32.05}},""" +
-                """"pnl":{"actual":-11.13,"delta":-11.54,"gamma":-0.81,"vega":0.00,"theta":1.25,"rho":0.00,""" +
-                """"explained":-11.10,"residual":-0.03}}""",
+                // A zero leg serialises as 0 rather than 0.00, and the explained total as -11.1
+                // rather than -11.10, because Money normalises trailing zeros to keep equality
+                // agreeing with compareTo. These are the same JSON numbers to any parser, and the
+                // web view formats every one of them to two places with toLocaleString, so the
+                // rendered report is unchanged.
+                """"pnl":{"actual":-11.13,"delta":-11.54,"gamma":-0.81,"vega":0,"theta":1.25,"rho":0,""" +
+                """"explained":-11.1,"residual":-0.03}}""",
             report(pnl).toJson(),
         )
     }
