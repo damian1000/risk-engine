@@ -37,7 +37,7 @@ class BlackScholesPricer : Pricer {
     override fun price(
         option: EquityOption,
         market: MarketData,
-    ): Money = Money(BigDecimal.valueOf(priceValue(option, market)).setScale(8, RoundingMode.HALF_UP))
+    ): Money = Money.of(BigDecimal.valueOf(priceValue(option, market)).setScale(8, RoundingMode.HALF_UP))
 
     override fun priceValue(
         option: EquityOption,
