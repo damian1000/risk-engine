@@ -24,9 +24,12 @@ Same box as the order book, so the same three values:
 ## Host setup
 
 A Cloudflare A record for `risk.damianhoward.com` points at the box, **DNS only / grey cloud** —
-proxying it breaks Caddy's ACME challenge. The Caddy route itself needs no manual step: the host's
-configuration is version-controlled and installed by a deploy, validated and backed up first. The
-service adds no publicly reachable port.
+proxying it breaks Caddy's ACME challenge. The Caddy route is one operator step rather than none:
+the host's configuration is version-controlled in the private infrastructure repository as one
+whole file per box and installed by a script there, validated and backed up first. A deploy of
+this service does not touch it — a bad Caddyfile takes every site on the box down at once, which
+should not be reachable as a side effect of shipping one service. The service adds no publicly
+reachable port.
 
 ## Rollback
 
